@@ -10,6 +10,7 @@
     --chalk: #F3EFE4; --chalk-dim: #C9C3B2; --gold: #D4A24E; --gold-dim: #8A7449;
     --line: #3A5548; --ed-accent: #6FA8DC; --kirk-accent: #D08A5C; --final-accent: #D4A24E;
     --bad: #C1512D; --good: #6FAE7A;
+  --tier-low: #C1512D; --tier-lowmed: #D97B29; --tier-med: #D9C441; --tier-medhigh: #6FAE7A; --tier-high: #6FA8DC;
   }
   *{box-sizing:border-box;}
   body{ margin:0; background: var(--turf-dark); color: var(--chalk);
@@ -71,6 +72,19 @@
   .status-note{ padding: 8px 12px 12px; font-size: 12px; color: var(--chalk-dim); border-top: 1px solid var(--line);
     display:flex; justify-content: space-between; align-items: center; }
   .status-note .badge{ font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; }
+
+  .tier-row{ display:flex; gap: 5px; padding: 0 12px 10px; }
+  .tier-btn{
+    flex: 1; border: 1.5px solid var(--line); background: transparent;
+    color: var(--chalk-dim); font-size: 10.5px; font-weight: 700;
+    padding: 7px 2px; border-radius: 6px; cursor: pointer; text-align: center; line-height: 1.2;
+  }
+  .tier-btn.active{ color: #14201A; border-color: transparent; }
+  .game-card.tier-low{ border-left: 4px solid var(--tier-low); }
+  .game-card.tier-lowmed{ border-left: 4px solid var(--tier-lowmed); }
+  .game-card.tier-med{ border-left: 4px solid var(--tier-med); }
+  .game-card.tier-medhigh{ border-left: 4px solid var(--tier-medhigh); }
+  .game-card.tier-high{ border-left: 4px solid var(--tier-high); }
   .badge.waiting{ background: var(--turf-light); color: var(--chalk-dim); }
   .badge.ready{ background: var(--good); color: #0E2410; }
   .compare-row{ display:flex; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 13.5px; align-items:center; }
@@ -125,29 +139,71 @@ async function sbUpdate(table, id, row) { return workerCall({ method: 'UPDATE', 
 async function sbDelete(table, id) { return workerCall({ method: 'DELETE', table, idField: 'id', idValue: id }); }
 async function sbUpsert(table, row, onConflict) { return workerCall({ method: 'UPSERT', table, data: row, filters: onConflict || '' }); }
 
-/* ============================= APP DATA ============================= */
-const CURRENT_WEEK = "week1";
-const GAMES = [
-  { id: "g1",  away: "Patriots", home: "Seahawks", awayAb: "NE",  homeAb: "SEA", favorite: "home", spread: 3.5, when: "Wed 9/9 · 8:20p ET" },
-  { id: "g2",  away: "49ers",    home: "Rams",     awayAb: "SF",  homeAb: "LAR", favorite: "home", spread: 3.5, when: "Thu 9/10 · 8:35p ET" },
-  { id: "g3",  away: "Bears",    home: "Panthers", awayAb: "CHI", homeAb: "CAR", favorite: "away", spread: 2.5, when: "Sun 9/13 · 1:00p ET" },
-  { id: "g4",  away: "Buccaneers", home: "Bengals", awayAb: "TB", homeAb: "CIN", favorite: "home", spread: 3.5, when: "Sun 9/13 · 1:00p ET" },
-  { id: "g5",  away: "Ravens",   home: "Colts",    awayAb: "BAL", homeAb: "IND", favorite: "away", spread: 3.5, when: "Sun 9/13 · 1:00p ET" },
-  { id: "g6",  away: "Bills",    home: "Texans",   awayAb: "BUF", homeAb: "HOU", favorite: "away", spread: 1.5, when: "Sun 9/13 · 1:00p ET" },
-  { id: "g7",  away: "Saints",   home: "Lions",    awayAb: "NO",  homeAb: "DET", favorite: "home", spread: 7,   when: "Sun 9/13 · 1:00p ET" },
-  { id: "g8",  away: "Jets",     home: "Titans",   awayAb: "NYJ", homeAb: "TEN", favorite: "home", spread: 1.5, when: "Sun 9/13 · 1:00p ET" },
-  { id: "g9",  away: "Falcons",  home: "Steelers", awayAb: "ATL", homeAb: "PIT", favorite: "home", spread: 3.5, when: "Sun 9/13 · 1:00p ET" },
-  { id: "g10", away: "Browns",   home: "Jaguars",  awayAb: "CLE", homeAb: "JAX", favorite: "home", spread: 7.5, when: "Sun 9/13 · 1:00p ET" },
-  { id: "g11", away: "Cardinals",home: "Chargers", awayAb: "ARI", homeAb: "LAC", favorite: "home", spread: 10.5,when: "Sun 9/13 · 4:25p ET" },
-  { id: "g12", away: "Packers",  home: "Vikings",  awayAb: "GB",  homeAb: "MIN", favorite: "home", spread: 1.5, when: "Sun 9/13 · 4:25p ET" },
-  { id: "g13", away: "Dolphins", home: "Raiders",  awayAb: "MIA", homeAb: "LV",  favorite: "home", spread: 3.5, when: "Sun 9/13 · 4:25p ET" },
-  { id: "g14", away: "Commanders",home:"Eagles",   awayAb: "WAS", homeAb: "PHI", favorite: "home", spread: 5.5, when: "Sun 9/13 · 4:25p ET" },
-  { id: "g15", away: "Cowboys",  home: "Giants",   awayAb: "DAL", homeAb: "NYG", favorite: "away", spread: 2.5, when: "Sun 9/13 · 8:20p ET" },
-  { id: "g16", away: "Broncos",  home: "Chiefs",   awayAb: "DEN", homeAb: "KC",  favorite: "home", spread: 3,   when: "Mon 9/14 · 8:15p ET" },
-];
-const N = GAMES.length;
+/* ============================= APP DATA (multi-week) ============================= */
+// To add a future week: add a new entry here with its games (visitor first).
+// No other code changes needed — the app picks it up automatically.
+const WEEKS = {
+  week1: {
+    label: "Week 1",
+    dateRange: "Sept 9-14, 2026",
+    games: [
+      { id: "g1",  away: "Patriots", home: "Seahawks", awayAb: "NE",  homeAb: "SEA", favorite: "home", spread: 3.5, when: "Wed 9/9 · 8:20p ET" },
+      { id: "g2",  away: "49ers",    home: "Rams",     awayAb: "SF",  homeAb: "LAR", favorite: "home", spread: 3.5, when: "Thu 9/10 · 8:35p ET" },
+      { id: "g3",  away: "Bears",    home: "Panthers", awayAb: "CHI", homeAb: "CAR", favorite: "away", spread: 2.5, when: "Sun 9/13 · 1:00p ET" },
+      { id: "g4",  away: "Buccaneers", home: "Bengals", awayAb: "TB", homeAb: "CIN", favorite: "home", spread: 3.5, when: "Sun 9/13 · 1:00p ET" },
+      { id: "g5",  away: "Ravens",   home: "Colts",    awayAb: "BAL", homeAb: "IND", favorite: "away", spread: 3.5, when: "Sun 9/13 · 1:00p ET" },
+      { id: "g6",  away: "Bills",    home: "Texans",   awayAb: "BUF", homeAb: "HOU", favorite: "away", spread: 1.5, when: "Sun 9/13 · 1:00p ET" },
+      { id: "g7",  away: "Saints",   home: "Lions",    awayAb: "NO",  homeAb: "DET", favorite: "home", spread: 7,   when: "Sun 9/13 · 1:00p ET" },
+      { id: "g8",  away: "Jets",     home: "Titans",   awayAb: "NYJ", homeAb: "TEN", favorite: "home", spread: 1.5, when: "Sun 9/13 · 1:00p ET" },
+      { id: "g9",  away: "Falcons",  home: "Steelers", awayAb: "ATL", homeAb: "PIT", favorite: "home", spread: 3.5, when: "Sun 9/13 · 1:00p ET" },
+      { id: "g10", away: "Browns",   home: "Jaguars",  awayAb: "CLE", homeAb: "JAX", favorite: "home", spread: 7.5, when: "Sun 9/13 · 1:00p ET" },
+      { id: "g11", away: "Cardinals",home: "Chargers", awayAb: "ARI", homeAb: "LAC", favorite: "home", spread: 10.5,when: "Sun 9/13 · 4:25p ET" },
+      { id: "g12", away: "Packers",  home: "Vikings",  awayAb: "GB",  homeAb: "MIN", favorite: "home", spread: 1.5, when: "Sun 9/13 · 4:25p ET" },
+      { id: "g13", away: "Dolphins", home: "Raiders",  awayAb: "MIA", homeAb: "LV",  favorite: "home", spread: 3.5, when: "Sun 9/13 · 4:25p ET" },
+      { id: "g14", away: "Commanders",home:"Eagles",   awayAb: "WAS", homeAb: "PHI", favorite: "home", spread: 5.5, when: "Sun 9/13 · 4:25p ET" },
+      { id: "g15", away: "Cowboys",  home: "Giants",   awayAb: "DAL", homeAb: "NYG", favorite: "away", spread: 2.5, when: "Sun 9/13 · 8:20p ET" },
+      { id: "g16", away: "Broncos",  home: "Chiefs",   awayAb: "DEN", homeAb: "KC",  favorite: "home", spread: 3,   when: "Mon 9/14 · 8:15p ET" },
+    ]
+  },
+  week2: {
+    label: "Week 2",
+    dateRange: "Sept 17-21, 2026",
+    games: [
+      { id: "g1",  away: "Lions",     home: "Bills",      awayAb: "DET", homeAb: "BUF", favorite: "home", spread: 3,   when: "Thu 9/17 · 8:15p ET" },
+      { id: "g2",  away: "Panthers",  home: "Falcons",    awayAb: "CAR", homeAb: "ATL", favorite: "home", spread: 1.5, when: "Sun 9/20 · 1:00p ET" },
+      { id: "g3",  away: "Saints",    home: "Ravens",     awayAb: "NO",  homeAb: "BAL", favorite: "home", spread: 8.5, when: "Sun 9/20 · 1:00p ET" },
+      { id: "g4",  away: "Vikings",   home: "Bears",      awayAb: "MIN", homeAb: "CHI", favorite: "home", spread: 6.5, when: "Sun 9/20 · 1:00p ET" },
+      { id: "g5",  away: "Bengals",   home: "Texans",     awayAb: "CIN", homeAb: "HOU", favorite: "home", spread: 2.5, when: "Sun 9/20 · 1:00p ET" },
+      { id: "g6",  away: "Steelers",  home: "Patriots",   awayAb: "PIT", homeAb: "NE",  favorite: "home", spread: 5.5, when: "Sun 9/20 · 1:00p ET" },
+      { id: "g7",  away: "Packers",   home: "Jets",       awayAb: "GB",  homeAb: "NYJ", favorite: "away", spread: 5.5, when: "Sun 9/20 · 1:00p ET" },
+      { id: "g8",  away: "Browns",    home: "Buccaneers", awayAb: "CLE", homeAb: "TB",  favorite: "home", spread: 8.5, when: "Sun 9/20 · 1:00p ET" },
+      { id: "g9",  away: "Eagles",    home: "Titans",     awayAb: "PHI", homeAb: "TEN", favorite: "away", spread: 7,   when: "Sun 9/20 · 1:00p ET" },
+      { id: "g10", away: "Jaguars",   home: "Broncos",    awayAb: "JAX", homeAb: "DEN", favorite: "home", spread: 2.5, when: "Sun 9/20 · 4:05p ET" },
+      { id: "g11", away: "Raiders",   home: "Chargers",   awayAb: "LV",  homeAb: "LAC", favorite: "home", spread: 7,   when: "Sun 9/20 · 4:05p ET" },
+      { id: "g12", away: "Seahawks",  home: "Cardinals",  awayAb: "SEA", homeAb: "ARI", favorite: "away", spread: 5.5, when: "Sun 9/20 · 4:25p ET" },
+      { id: "g13", away: "Commanders",home: "Cowboys",    awayAb: "WAS", homeAb: "DAL", favorite: "home", spread: 4.5, when: "Sun 9/20 · 4:25p ET" },
+      { id: "g14", away: "Dolphins",  home: "49ers",      awayAb: "MIA", homeAb: "SF",  favorite: "home", spread: 12.5,when: "Sun 9/20 · 4:25p ET" },
+      { id: "g15", away: "Colts",     home: "Chiefs",     awayAb: "IND", homeAb: "KC",  favorite: "home", spread: 6.5, when: "Sun 9/20 · 8:20p ET" },
+      { id: "g16", away: "Giants",    home: "Rams",       awayAb: "NYG", homeAb: "LAR", favorite: "home", spread: 7.5, when: "Mon 9/21 · 8:15p ET" },
+    ]
+  },
+};
+const WEEK_ORDER = ["week1", "week2"]; // add future week ids here in order
 
-const PRESET = {
+function currentGames(){ return WEEKS[state.week].games; }
+function currentN(){ return currentGames().length; }
+
+// Ed's private confidence-tier scale — never shown to Kirk, purely a personal aid
+// before assigning the actual point value. Low -> High = red -> blue.
+const TIERS = [
+  { key: "low",      label: "Low",       cls: "tier-low",      color: "var(--tier-low)" },
+  { key: "lowmed",   label: "Low-Med",   cls: "tier-lowmed",   color: "var(--tier-lowmed)" },
+  { key: "med",      label: "Med",       cls: "tier-med",      color: "var(--tier-med)" },
+  { key: "medhigh",  label: "Med-High",  cls: "tier-medhigh",  color: "var(--tier-medhigh)" },
+  { key: "high",     label: "High",      cls: "tier-high",     color: "var(--tier-high)" },
+];
+
+const PRESET_WEEK1 = {
   ed:   { g1:["home",6], g2:["home",11], g3:["away",8], g4:["home",4], g5:["away",12], g6:["away",1], g7:["home",14], g8:["home",7], g9:["home",9], g10:["home",15], g11:["home",16], g12:["away",2], g13:["home",10], g14:["home",13], g15:["away",5], g16:["home",3] },
   kirk: { g1:["home",8], g2:["home",11], g3:["away",7], g4:["home",10], g5:["away",6], g6:["away",3], g7:["home",14], g8:["away",1], g9:["home",12], g10:["home",15], g11:["home",16], g12:["away",2], g13:["home",5], g14:["home",13], g15:["away",9], g16:["away",4] },
   final:{ g1:["home",8], g2:["home",11], g3:["away",7], g4:["home",9], g5:["away",10], g6:["away",2], g7:["home",14], g8:["home",3], g9:["home",12], g10:["home",15], g11:["home",16], g12:["away",4], g13:["home",5], g14:["home",13], g15:["away",6], g16:["away",1] },
@@ -156,14 +212,19 @@ const PRESET = {
 /* ============================= STATE ============================= */
 let state = {
   identity: null, unlocked: false, screen: "identity", tab: "picks",
+  week: "week2", // default to the most recent open week
   picksEd: {}, picksKirk: {}, final: {}, results: null,
   connectionOK: true, pinError: "", pinDraft: "", awaitingConfirm: false,
 };
-GAMES.forEach(g => {
-  state.picksEd[g.id] = {team:null, pts:null};
-  state.picksKirk[g.id] = {team:null, pts:null};
-  state.final[g.id] = {team:null, pts:null};
-});
+function resetPicksShape(){
+  state.picksEd = {}; state.picksKirk = {}; state.final = {};
+  currentGames().forEach(g => {
+    state.picksEd[g.id] = {team:null, pts:null, tier:null};
+    state.picksKirk[g.id] = {team:null, pts:null, tier:null};
+    state.final[g.id] = {team:null, pts:null};
+  });
+}
+resetPicksShape();
 
 /* ============================= HASH ============================= */
 async function sha256(text){
@@ -186,55 +247,57 @@ async function setAuth(identity, hash){
 }
 
 async function getPicksForIdentity(identity){
+  const games = currentGames();
   const obj = {};
-  GAMES.forEach(g => obj[g.id] = {team:null, pts:null});
+  games.forEach(g => obj[g.id] = {team:null, pts:null, tier:null});
   try{
-    const rows = await sbGet('ConfPicks', `week=eq.${CURRENT_WEEK}&identity=eq.${identity}`);
+    const rows = await sbGet('ConfPicks', `week=eq.${state.week}&identity=eq.${identity}`);
     state.connectionOK = true;
     let hasAny = false;
-    (rows||[]).forEach(r => { obj[r.game_id] = {team:r.team, pts:r.pts}; hasAny = true; });
-    if(!hasAny){
-      const preset = PRESET[identity];
-      GAMES.forEach(g => { const v = preset[g.id]; if(v){ obj[g.id] = {team:v[0], pts:v[1]}; } });
-      for(const g of GAMES){
+    (rows||[]).forEach(r => { obj[r.game_id] = {team:r.team, pts:r.pts, tier:r.tier||null}; hasAny = true; });
+    if(!hasAny && state.week === "week1"){
+      const preset = PRESET_WEEK1[identity];
+      games.forEach(g => { const v = preset[g.id]; if(v){ obj[g.id] = {team:v[0], pts:v[1], tier:null}; } });
+      for(const g of games){
         const v = obj[g.id];
-        if(v.team) await sbUpsert('ConfPicks', {week:CURRENT_WEEK, identity, game_id:g.id, team:v.team, pts:v.pts}, 'week,identity,game_id');
+        if(v.team) await sbUpsert('ConfPicks', {week:state.week, identity, game_id:g.id, team:v.team, pts:v.pts, tier:null}, 'week,identity,game_id');
       }
     }
   }catch(e){ state.connectionOK = false; }
   return obj;
 }
-async function savePick(identity, gameId, team, pts){
-  try{ await sbUpsert('ConfPicks', {week:CURRENT_WEEK, identity, game_id:gameId, team, pts}, 'week,identity,game_id'); state.connectionOK = true; }
+async function savePick(identity, gameId, team, pts, tier){
+  try{ await sbUpsert('ConfPicks', {week:state.week, identity, game_id:gameId, team, pts, tier: tier===undefined?null:tier}, 'week,identity,game_id'); state.connectionOK = true; }
   catch(e){ state.connectionOK = false; }
 }
 
 async function getFinal(){
+  const games = currentGames();
   const obj = {};
-  GAMES.forEach(g => obj[g.id] = {team:null, pts:null});
+  games.forEach(g => obj[g.id] = {team:null, pts:null});
   try{
-    const rows = await sbGet('ConfFinal', `week=eq.${CURRENT_WEEK}`);
+    const rows = await sbGet('ConfFinal', `week=eq.${state.week}`);
     state.connectionOK = true;
     let hasAny = false;
     (rows||[]).forEach(r => { obj[r.game_id] = {team:r.team, pts:r.pts}; hasAny = true; });
-    if(!hasAny){
-      GAMES.forEach(g => { const v = PRESET.final[g.id]; if(v) obj[g.id] = {team:v[0], pts:v[1]}; });
-      for(const g of GAMES){
+    if(!hasAny && state.week === "week1"){
+      games.forEach(g => { const v = PRESET_WEEK1.final[g.id]; if(v) obj[g.id] = {team:v[0], pts:v[1]}; });
+      for(const g of games){
         const v = obj[g.id];
-        if(v.team) await sbUpsert('ConfFinal', {week:CURRENT_WEEK, game_id:g.id, team:v.team, pts:v.pts}, 'week,game_id');
+        if(v.team) await sbUpsert('ConfFinal', {week:state.week, game_id:g.id, team:v.team, pts:v.pts}, 'week,game_id');
       }
     }
   }catch(e){ state.connectionOK = false; }
   return obj;
 }
 async function saveFinal(gameId, team, pts){
-  try{ await sbUpsert('ConfFinal', {week:CURRENT_WEEK, game_id:gameId, team, pts}, 'week,game_id'); state.connectionOK = true; }
+  try{ await sbUpsert('ConfFinal', {week:state.week, game_id:gameId, team, pts}, 'week,game_id'); state.connectionOK = true; }
   catch(e){ state.connectionOK = false; }
 }
 
 async function getResults(){
   try{
-    const rows = await sbGet('ConfResults', `week=eq.${CURRENT_WEEK}`);
+    const rows = await sbGet('ConfResults', `week=eq.${state.week}`);
     state.connectionOK = true;
     if(!rows || rows.length === 0) return null;
     const obj = {};
@@ -245,16 +308,24 @@ async function getResults(){
 async function saveResults(resultsObj){
   for(const gameId in resultsObj){
     const r = resultsObj[gameId];
-    try{ await sbUpsert('ConfResults', {week:CURRENT_WEEK, game_id:gameId, winner:r.winner, score:r.score||null}, 'week,game_id'); }
+    try{ await sbUpsert('ConfResults', {week:state.week, game_id:gameId, winner:r.winner, score:r.score||null}, 'week,game_id'); }
     catch(e){ state.connectionOK = false; }
   }
 }
 
 async function loadAll(){
+  resetPicksShape();
   const [ed, kirk, fin, res] = await Promise.all([
     getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
   ]);
   state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
+}
+
+async function switchWeek(weekId){
+  if(weekId === state.week) return;
+  state.week = weekId;
+  await loadAll();
+  render();
 }
 
 /* ============================= AUTH FLOW ============================= */
@@ -288,20 +359,28 @@ function logout(){ state.identity = null; state.unlocked = false; state.screen =
 function myPicksKey(){ return state.identity === "ed" ? "picksEd" : "picksKirk"; }
 function usedPointsInMyColumn(excludeGameId){
   const used = new Set(); const mine = state[myPicksKey()];
-  GAMES.forEach(g => { if(g.id !== excludeGameId && mine[g.id].pts != null) used.add(mine[g.id].pts); });
+  currentGames().forEach(g => { if(g.id !== excludeGameId && mine[g.id].pts != null) used.add(mine[g.id].pts); });
   return used;
 }
 function usedPointsInFinal(excludeGameId){
   const used = new Set();
-  GAMES.forEach(g => { if(g.id !== excludeGameId && state.final[g.id].pts != null) used.add(state.final[g.id].pts); });
+  currentGames().forEach(g => { if(g.id !== excludeGameId && state.final[g.id].pts != null) used.add(state.final[g.id].pts); });
   return used;
 }
 async function setMyPick(gameId, team, pts){
   const mine = state[myPicksKey()];
-  const newVal = { team: team!==undefined?team:mine[gameId].team, pts: pts!==undefined?pts:mine[gameId].pts };
+  const newVal = { team: team!==undefined?team:mine[gameId].team, pts: pts!==undefined?pts:mine[gameId].pts, tier: mine[gameId].tier };
   mine[gameId] = newVal;
   render();
-  await savePick(state.identity, gameId, newVal.team, newVal.pts);
+  await savePick(state.identity, gameId, newVal.team, newVal.pts, newVal.tier);
+}
+async function setMyTier(gameId, tier){
+  const mine = state[myPicksKey()];
+  const cur = mine[gameId];
+  const newTier = cur.tier === tier ? null : tier; // tap again to clear
+  mine[gameId] = { team: cur.team, pts: cur.pts, tier: newTier };
+  render();
+  await savePick(state.identity, gameId, cur.team, cur.pts, newTier);
 }
 async function setFinalPick(gameId, team, pts){
   const newVal = { team: team!==undefined?team:state.final[gameId].team, pts: pts!==undefined?pts:state.final[gameId].pts };
@@ -317,8 +396,9 @@ async function checkResults(){
   const btn = document.getElementById("checkResultsBtn");
   if(btn){ btn.disabled = true; btn.textContent = "Checking…"; }
   try{
-    const gameList = GAMES.map(g => `${g.id}: ${g.awayAb} (away) at ${g.homeAb} (home)`).join("\n");
-    const prompt = `Search the web for NFL Week 1 2026 final scores (games played Sept 9-14, 2026). For each game below, determine which side won: "away" or "home". Respond with ONLY a JSON object, no other text, no markdown fences, mapping game id to an object with "winner" ("away"/"home") and "score" as "awayScore-homeScore". Example: {"g1": {"winner":"home","score":"10-13"}}.
+    const wk = WEEKS[state.week];
+    const gameList = wk.games.map(g => `${g.id}: ${g.awayAb} (away) at ${g.homeAb} (home)`).join("\n");
+    const prompt = `Search the web for NFL ${wk.label} 2026 final scores (games played ${wk.dateRange}). For each game below, determine which side won: "away" or "home". Respond with ONLY a JSON object, no other text, no markdown fences, mapping game id to an object with "winner" ("away"/"home") and "score" as "awayScore-homeScore". Example: {"g1": {"winner":"home","score":"10-13"}}.
 
 Games:
 ${gameList}`;
@@ -355,7 +435,7 @@ function pointsEarned(picksObj, gameId){
 function weekTotal(picksObj){
   if(!state.results) return null;
   let total = 0;
-  GAMES.forEach(g => { const pe = pointsEarned(picksObj, g.id); if(pe != null) total += pe; });
+  currentGames().forEach(g => { const pe = pointsEarned(picksObj, g.id); if(pe != null) total += pe; });
   return total;
 }
 
@@ -377,7 +457,7 @@ function render(){
 
 function renderIdentity(app){
   app.innerHTML = `
-    <div class="page-head"><div class="kicker">CONFIDENCE POOL</div><h1>Week 1</h1><div class="sub">Who's picking?</div></div>
+    <div class="page-head"><div class="kicker">CONFIDENCE POOL</div><h1>Who's picking?</h1><div class="sub">Choose your name to enter your PIN. You'll pick which week once you're in.</div></div>
     <div class="id-card">
       <div style="font-size:14px;color:var(--chalk-dim);">Select your name to enter your PIN and see your picks.</div>
       <div class="id-choice-row">
@@ -425,12 +505,15 @@ function renderPinEnter(app){
 
 function renderApp(app){
   const meLabel = state.identity === "ed" ? "Ed" : "Kirk";
+  const weekOptions = WEEK_ORDER.map(wk => `<option value="${wk}" ${wk===state.week?"selected":""}>${WEEKS[wk].label}</option>`).join("");
   app.innerHTML = `
-    <div class="page-head" style="border-bottom:none;padding-bottom:0;"><div class="kicker">CONFIDENCE POOL — WEEK 1</div></div>
+    <div class="page-head" style="border-bottom:none;padding-bottom:0;"><div class="kicker">CONFIDENCE POOL</div></div>
     <div class="topbar">
       <div class="whoami ${state.identity}">You are: ${meLabel}</div>
       <button class="logout-link" id="logoutBtn">switch / lock</button>
     </div>
+    <div class="field-label" style="margin-top:0;">Week</div>
+    <select class="pts" id="weekSelect" style="width:100%;text-align:left;text-align-last:left;margin-bottom:14px;">${weekOptions}</select>
     ${!state.connectionOK ? `<div class="backup-panel warn"><div class="backup-title">Connection issue</div><div class="backup-desc">Couldn't reach the database just now. Your last saved picks are shown below — try your action again in a moment.</div></div>` : ""}
     <div class="tabs">
       <button class="tab ${state.tab==='picks'?'active':''}" data-tab="picks">My Picks</button>
@@ -442,6 +525,7 @@ function renderApp(app){
     <div class="toast" id="toast"></div>
   `;
   document.getElementById("logoutBtn").onclick = logout;
+  document.getElementById("weekSelect").onchange = (e) => switchWeek(e.target.value);
   app.querySelectorAll(".tab").forEach(t => t.onclick = () => { state.tab = t.dataset.tab; render(); });
   const content = document.getElementById("tabContent");
   if(state.tab === "picks") renderMyPicks(content);
@@ -451,18 +535,21 @@ function renderApp(app){
 }
 
 function renderMyPicks(container){
+  const games = currentGames(); const n = currentN();
   const mine = state[myPicksKey()]; const meColorClass = state.identity;
-  let doneCount = 0; GAMES.forEach(g => { if(isComplete(mine[g.id])) doneCount++; });
-  container.innerHTML = `<div class="status-bar"><div class="status-pill ${meColorClass}"><span class="n">${doneCount}/${N}</span>Submitted</div></div><div id="myGames"></div>`;
+  let doneCount = 0; games.forEach(g => { if(isComplete(mine[g.id])) doneCount++; });
+  container.innerHTML = `<div class="status-bar"><div class="status-pill ${meColorClass}"><span class="n">${doneCount}/${n}</span>Submitted</div></div><div id="myGames"></div>`;
   const myGames = document.getElementById("myGames");
-  GAMES.forEach(g => {
+  games.forEach(g => {
     const p = mine[g.id]; const used = usedPointsInMyColumn(g.id);
     const favTeam = g.favorite === "home" ? g.homeAb : g.awayAb;
     let options = `<option value="" ${p.pts==null?"selected":""}></option>`;
-    for(let i=1;i<=N;i++){ const isUsed = used.has(i) && p.pts !== i; options += `<option value="${i}" ${p.pts===i?"selected":""} ${isUsed?"disabled":""}>${i}</option>`; }
+    for(let i=1;i<=n;i++){ const isUsed = used.has(i) && p.pts !== i; options += `<option value="${i}" ${p.pts===i?"selected":""} ${isUsed?"disabled":""}>${i}</option>`; }
     const otherComplete = isComplete(state[state.identity==='ed'?'picksKirk':'picksEd'][g.id]);
     const bothIn = isComplete(state.picksEd[g.id]) && isComplete(state.picksKirk[g.id]);
-    const card = document.createElement("div"); card.className = "game-card";
+    const tierObj = TIERS.find(t => t.key === p.tier);
+    const card = document.createElement("div");
+    card.className = "game-card" + (state.identity === "ed" && tierObj ? " " + tierObj.cls : "");
     card.innerHTML = `
       <div class="game-header"><div class="matchup">${g.awayAb}<span class="at">@</span>${g.homeAb}</div>
         <div class="game-meta">${g.when}<br><span class="spread">${favTeam} -${g.spread}</span></div></div>
@@ -473,20 +560,30 @@ function renderMyPicks(container){
         </div>
         <select class="pts">${options}</select>
       </div>
+      ${state.identity === "ed" ? `
+      <div class="tier-row">
+        ${TIERS.map(t => `<button type="button" class="tier-btn ${p.tier===t.key?'active':''}" data-tier="${t.key}" style="${p.tier===t.key?`background:${t.color};`:''}">${t.label}</button>`).join("")}
+      </div>` : ""}
       <div class="status-note"><span>Other side</span><span class="badge ${bothIn?'ready':'waiting'}">${bothIn ? "Both in" : (otherComplete ? "Other side in" : "Waiting on other side")}</span></div>
     `;
     card.querySelector('[data-team="away"]').onclick = () => setMyPick(g.id, "away", undefined);
     card.querySelector('[data-team="home"]').onclick = () => setMyPick(g.id, "home", undefined);
     card.querySelector("select").onchange = (e) => setMyPick(g.id, undefined, e.target.value === "" ? null : parseInt(e.target.value,10));
+    if(state.identity === "ed"){
+      card.querySelectorAll('[data-tier]').forEach(btn => {
+        btn.onclick = () => setMyTier(g.id, btn.dataset.tier);
+      });
+    }
     myGames.appendChild(card);
   });
 }
 
 function renderCompare(container){
-  let readyCount = 0; GAMES.forEach(g => { if(bothSubmitted(g.id)) readyCount++; });
-  container.innerHTML = `<div class="status-bar"><div class="status-pill final"><span class="n">${readyCount}/${N}</span>Ready to compare</div></div><div id="compareGames"></div>`;
+  const games = currentGames(); const n = currentN();
+  let readyCount = 0; games.forEach(g => { if(bothSubmitted(g.id)) readyCount++; });
+  container.innerHTML = `<div class="status-bar"><div class="status-pill final"><span class="n">${readyCount}/${n}</span>Ready to compare</div></div><div id="compareGames"></div>`;
   const holder = document.getElementById("compareGames");
-  GAMES.forEach(g => {
+  games.forEach(g => {
     const ready = bothSubmitted(g.id); const favTeam = g.favorite === "home" ? g.homeAb : g.awayAb;
     const card = document.createElement("div"); card.className = "game-card";
     let body;
@@ -506,16 +603,17 @@ function renderCompare(container){
 }
 
 function renderFinal(container){
-  let doneCount = 0; GAMES.forEach(g => { if(isComplete(state.final[g.id])) doneCount++; });
-  container.innerHTML = `<div class="status-bar"><div class="status-pill final"><span class="n">${doneCount}/${N}</span>Final set</div></div>
+  const games = currentGames(); const n = currentN();
+  let doneCount = 0; games.forEach(g => { if(isComplete(state.final[g.id])) doneCount++; });
+  container.innerHTML = `<div class="status-bar"><div class="status-pill final"><span class="n">${doneCount}/${n}</span>Final set</div></div>
     <div class="hint-text" style="margin-bottom:12px;">Open to both of you — no PIN. Whoever's finalizing that week's picks sets this after comparing.</div>
     <div id="finalGames"></div>`;
   const holder = document.getElementById("finalGames");
-  GAMES.forEach(g => {
+  games.forEach(g => {
     const p = state.final[g.id]; const used = usedPointsInFinal(g.id);
     const favTeam = g.favorite === "home" ? g.homeAb : g.awayAb;
     let options = `<option value="" ${p.pts==null?"selected":""}></option>`;
-    for(let i=1;i<=N;i++){ const isUsed = used.has(i) && p.pts !== i; options += `<option value="${i}" ${p.pts===i?"selected":""} ${isUsed?"disabled":""}>${i}</option>`; }
+    for(let i=1;i<=n;i++){ const isUsed = used.has(i) && p.pts !== i; options += `<option value="${i}" ${p.pts===i?"selected":""} ${isUsed?"disabled":""}>${i}</option>`; }
     const card = document.createElement("div"); card.className = "game-card";
     card.innerHTML = `
       <div class="game-header"><div class="matchup">${g.awayAb}<span class="at">@</span>${g.homeAb}</div>
@@ -535,8 +633,10 @@ function renderFinal(container){
 }
 
 function renderResults(container){
+  const games = currentGames();
   const edTotal = weekTotal(state.picksEd), kirkTotal = weekTotal(state.picksKirk), finalTotal = weekTotal(state.final);
   container.innerHTML = `
+    <div class="hint-text" style="margin-bottom:10px;">Showing ${WEEKS[state.week].label}.</div>
     <button class="btn primary" id="checkResultsBtn" style="margin-bottom:16px;">${state.results ? "Re-check results" : "Check results"}</button>
     ${state.results ? `
       <div class="status-bar">
@@ -547,7 +647,7 @@ function renderResults(container){
       <div class="section-title">Game by game</div>
       <table class="tally-table">
         <tr><th>Game</th><th>Winner</th><th>Ed</th><th>Kirk</th><th>Final</th></tr>
-        ${GAMES.map(g => {
+        ${games.map(g => {
           const r = state.results[g.id];
           const winAb = r ? (r.winner === "away" ? g.awayAb : g.homeAb) : "—";
           const edP = pointsEarned(state.picksEd, g.id), kirkP = pointsEarned(state.picksKirk, g.id), finalP = pointsEarned(state.final, g.id);
