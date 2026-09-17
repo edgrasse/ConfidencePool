@@ -85,6 +85,16 @@
   .game-card.tier-med{ border-left: 4px solid var(--tier-med); }
   .game-card.tier-medhigh{ border-left: 4px solid var(--tier-medhigh); }
   .game-card.tier-high{ border-left: 4px solid var(--tier-high); }
+
+  .tier-filter-row{ display:flex; gap: 5px; margin-bottom: 14px; }
+  .tier-filter-btn{
+    flex: 1; border: 1.5px solid var(--line); background: var(--turf);
+    color: var(--chalk-dim); font-size: 10.5px; font-weight: 700;
+    padding: 8px 2px; border-radius: 7px; cursor: pointer; text-align: center; line-height: 1.25;
+  }
+  .tier-filter-btn .cnt{ display:block; font-size: 13px; font-weight: 800; margin-top: 1px; }
+  .tier-filter-btn.active{ color: #14201A; border-color: transparent; }
+  .tier-filter-btn.all.active{ background: var(--chalk); }
   .badge.waiting{ background: var(--turf-light); color: var(--chalk-dim); }
   .badge.ready{ background: var(--good); color: #0E2410; }
   .compare-row{ display:flex; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 13.5px; align-items:center; }
@@ -215,6 +225,7 @@ let state = {
   week: "week2", // default to the most recent open week
   picksEd: {}, picksKirk: {}, final: {}, results: null,
   connectionOK: true, pinError: "", pinDraft: "", awaitingConfirm: false,
+  tierFilter: null, // Ed-only: filter My Picks by tier ('low'|'lowmed'|'med'|'medhigh'|'high'|null=all)
 };
 function resetPicksShape(){
   state.picksEd = {}; state.picksKirk = {}; state.final = {};
@@ -324,6 +335,7 @@ async function loadAll(){
 async function switchWeek(weekId){
   if(weekId === state.week) return;
   state.week = weekId;
+  state.tierFilter = null;
   await loadAll();
   render();
 }
@@ -353,7 +365,7 @@ async function submitPinEnter(pin){
     await loadAll(); render();
   } else { state.pinError = "Wrong PIN. Try again."; render(); }
 }
-function logout(){ state.identity = null; state.unlocked = false; state.screen = "identity"; render(); }
+function logout(){ state.identity = null; state.unlocked = false; state.screen = "identity"; state.tierFilter = null; render(); }
 
 /* ============================= PICK LOGIC ============================= */
 function myPicksKey(){ return state.identity === "ed" ? "picksEd" : "picksKirk"; }
@@ -538,9 +550,36 @@ function renderMyPicks(container){
   const games = currentGames(); const n = currentN();
   const mine = state[myPicksKey()]; const meColorClass = state.identity;
   let doneCount = 0; games.forEach(g => { if(isComplete(mine[g.id])) doneCount++; });
-  container.innerHTML = `<div class="status-bar"><div class="status-pill ${meColorClass}"><span class="n">${doneCount}/${n}</span>Submitted</div></div><div id="myGames"></div>`;
+
+  const isEd = state.identity === "ed";
+  let filterBarHTML = "";
+  if(isEd){
+    const counts = {};
+    TIERS.forEach(t => counts[t.key] = 0);
+    games.forEach(g => { if(mine[g.id].tier) counts[mine[g.id].tier] = (counts[mine[g.id].tier]||0) + 1; });
+    filterBarHTML = `
+      <div class="tier-filter-row">
+        <button type="button" class="tier-filter-btn all ${state.tierFilter===null?'active':''}" data-filter="">All<span class="cnt">${games.length}</span></button>
+        ${TIERS.map(t => `<button type="button" class="tier-filter-btn ${state.tierFilter===t.key?'active':''}" data-filter="${t.key}" style="${state.tierFilter===t.key?`background:${t.color};`:''}">${t.label}<span class="cnt">${counts[t.key]}</span></button>`).join("")}
+      </div>
+    `;
+  }
+
+  const visibleGames = (isEd && state.tierFilter) ? games.filter(g => mine[g.id].tier === state.tierFilter) : games;
+
+  container.innerHTML = `
+    ${filterBarHTML}
+    <div class="status-bar"><div class="status-pill ${meColorClass}"><span class="n">${doneCount}/${n}</span>Submitted</div></div>
+    <div id="myGames"></div>
+    ${isEd && state.tierFilter && visibleGames.length === 0 ? `<div class="hint-text">No games tagged "${TIERS.find(t=>t.key===state.tierFilter).label}" yet.</div>` : ""}
+  `;
+  if(isEd){
+    container.querySelectorAll('.tier-filter-btn').forEach(btn => {
+      btn.onclick = () => { state.tierFilter = btn.dataset.filter || null; render(); };
+    });
+  }
   const myGames = document.getElementById("myGames");
-  games.forEach(g => {
+  visibleGames.forEach(g => {
     const p = mine[g.id]; const used = usedPointsInMyColumn(g.id);
     const favTeam = g.favorite === "home" ? g.homeAb : g.awayAb;
     let options = `<option value="" ${p.pts==null?"selected":""}></option>`;
