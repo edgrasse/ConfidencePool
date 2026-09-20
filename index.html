@@ -105,6 +105,17 @@
   .compare-pts{ width: 30px; text-align:center; font-weight: 700; }
   .agree-tag{ font-size: 10.5px; padding: 2px 6px; border-radius: 10px; background: var(--turf-light); color: var(--chalk-dim); margin-left: 6px; }
   .agree-tag.diff{ background: var(--bad); color: #fff; }
+  .compare-final-block{ border-top: 1.5px dashed var(--line); padding-top: 2px; margin-top: 2px; }
+  .compare-final-label{ padding: 8px 12px 0; font-size: 11px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.03em; }
+  .reveal-btn{
+    margin: 10px 12px 12px; width: calc(100% - 24px);
+    background: var(--gold); color: #2A2110; border: none;
+    font-size: 13px; font-weight: 700; padding: 9px; border-radius: 7px; cursor: pointer;
+  }
+  .hide-link{ font-size: 11px; color: var(--chalk-dim); background: none; border: none; text-decoration: underline; cursor: pointer; padding: 6px 12px 10px; display:block; margin-left: auto; }
+  .lock-summary{ background: var(--turf); border: 1px solid var(--bad); border-radius: 10px; padding: 12px; margin-top: 8px; font-size: 12.5px; color: var(--chalk); }
+  .lock-summary ul{ margin: 6px 0 0; padding-left: 18px; }
+  .lock-summary li{ margin-bottom: 3px; }
   .status-bar{ display:flex; gap: 10px; margin-bottom: 18px; font-size: 12.5px; }
   .status-pill{ flex: 1; background: var(--turf); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; text-align: center; }
   .status-pill .n{ font-size: 17px; font-weight: 700; display:block; }
@@ -226,6 +237,8 @@ let state = {
   picksEd: {}, picksKirk: {}, final: {}, results: null,
   connectionOK: true, pinError: "", pinDraft: "", awaitingConfirm: false,
   tierFilter: null, // Ed-only: filter My Picks by tier ('low'|'lowmed'|'med'|'medhigh'|'high'|null=all)
+  locked: false, // whether the currently selected week is locked
+  revealed: {}, // gameId -> true, per-game manual compare reveal (session-local, resets on week switch)
 };
 function resetPicksShape(){
   state.picksEd = {}; state.picksKirk = {}; state.final = {};
@@ -324,18 +337,34 @@ async function saveResults(resultsObj){
   }
 }
 
+async function getLock(){
+  try{
+    const rows = await sbGet('ConfWeekLock', `week=eq.${state.week}`);
+    state.connectionOK = true;
+    return !!(rows && rows.length > 0);
+  }catch(e){ state.connectionOK = false; return false; }
+}
+async function lockWeek(){
+  try{
+    await sbUpsert('ConfWeekLock', {week: state.week, locked_at: new Date().toISOString()}, 'week');
+    state.connectionOK = true;
+    return true;
+  }catch(e){ state.connectionOK = false; return false; }
+}
+
 async function loadAll(){
   resetPicksShape();
-  const [ed, kirk, fin, res] = await Promise.all([
-    getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
+  const [ed, kirk, fin, res, lock] = await Promise.all([
+    getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(), getLock(),
   ]);
-  state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
+  state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res; state.locked = lock;
 }
 
 async function switchWeek(weekId){
   if(weekId === state.week) return;
   state.week = weekId;
   state.tierFilter = null;
+  state.revealed = {};
   await loadAll();
   render();
 }
@@ -380,13 +409,25 @@ function usedPointsInFinal(excludeGameId){
   return used;
 }
 async function setMyPick(gameId, team, pts){
+  if(state.locked) return;
   const mine = state[myPicksKey()];
-  const newVal = { team: team!==undefined?team:mine[gameId].team, pts: pts!==undefined?pts:mine[gameId].pts, tier: mine[gameId].tier };
+  const newPts = pts!==undefined ? pts : mine[gameId].pts;
+  // If this point value is already used on a different game, clear it there (swap, not block).
+  if(newPts != null){
+    for(const g of currentGames()){
+      if(g.id !== gameId && mine[g.id].pts === newPts){
+        mine[g.id] = { ...mine[g.id], pts: null };
+        await savePick(state.identity, g.id, mine[g.id].team, null, mine[g.id].tier);
+      }
+    }
+  }
+  const newVal = { team: team!==undefined?team:mine[gameId].team, pts: newPts, tier: mine[gameId].tier };
   mine[gameId] = newVal;
   render();
   await savePick(state.identity, gameId, newVal.team, newVal.pts, newVal.tier);
 }
 async function setMyTier(gameId, tier){
+  if(state.locked) return;
   const mine = state[myPicksKey()];
   const cur = mine[gameId];
   const newTier = cur.tier === tier ? null : tier; // tap again to clear
@@ -395,13 +436,80 @@ async function setMyTier(gameId, tier){
   await savePick(state.identity, gameId, cur.team, cur.pts, newTier);
 }
 async function setFinalPick(gameId, team, pts){
-  const newVal = { team: team!==undefined?team:state.final[gameId].team, pts: pts!==undefined?pts:state.final[gameId].pts };
+  if(state.locked) return;
+  const newPts = pts!==undefined ? pts : state.final[gameId].pts;
+  if(newPts != null){
+    for(const g of currentGames()){
+      if(g.id !== gameId && state.final[g.id].pts === newPts){
+        state.final[g.id] = { ...state.final[g.id], pts: null };
+        await saveFinal(g.id, state.final[g.id].team, null);
+      }
+    }
+  }
+  const newVal = { team: team!==undefined?team:state.final[gameId].team, pts: newPts };
   state.final[gameId] = newVal;
   render();
   await saveFinal(gameId, newVal.team, newVal.pts);
 }
 function isComplete(p){ return p && p.team && p.pts != null; }
 function bothSubmitted(gameId){ return isComplete(state.picksEd[gameId]) && isComplete(state.picksKirk[gameId]); }
+
+function lockedBannerHTML(){
+  if(!state.locked) return "";
+  return `<div class="backup-panel" style="border-color:var(--gold);"><div class="backup-title" style="color:var(--gold);">🔒 ${WEEKS[state.week].label} is locked</div><div class="backup-desc">Picks and Final numbers are final and can't be changed.</div></div>`;
+}
+// Builds <option> list for a points <select>: never disables an already-used value
+// (picking it will swap it off whichever game currently holds it), just shades it.
+function ptsOptionsHTML(n, currentPts, usedSet){
+  let options = `<option value="" ${currentPts==null?"selected":""}></option>`;
+  for(let i=1;i<=n;i++){
+    const isUsedElsewhere = usedSet.has(i) && currentPts !== i;
+    const style = isUsedElsewhere ? ' style="background:var(--turf-light);color:var(--gold-dim);"' : "";
+    options += `<option value="${i}" ${currentPts===i?"selected":""}${style}>${i}${isUsedElsewhere?" •":""}</option>`;
+  }
+  return options;
+}
+
+function validateFinalForLock(){
+  const games = currentGames();
+  const n = games.length;
+  const missingWinner = [];
+  const missingPts = [];
+  const ptsUsed = new Set();
+  const dupPts = [];
+  games.forEach(g => {
+    const f = state.final[g.id];
+    if(!f.team) missingWinner.push(g.id);
+    if(f.pts == null) missingPts.push(g.id);
+    else {
+      if(ptsUsed.has(f.pts)) dupPts.push(f.pts);
+      ptsUsed.add(f.pts);
+    }
+  });
+  const errors = [];
+  if(missingWinner.length) errors.push(`${missingWinner.length} game(s) still need a Final winner chosen.`);
+  if(missingPts.length) errors.push(`${missingPts.length} game(s) still need Final points assigned.`);
+  if(dupPts.length) errors.push(`Points are duplicated (shouldn't be possible, but flagging): ${[...new Set(dupPts)].join(", ")}.`);
+  if(!missingPts.length && !dupPts.length && ptsUsed.size !== n) errors.push(`Points must cover 1 through ${n} exactly, with no gaps.`);
+  return errors;
+}
+
+async function attemptLockWeek(){
+  const errors = validateFinalForLock();
+  if(errors.length){
+    showToast(errors[0]);
+    render();
+    return;
+  }
+  const ok = await lockWeek();
+  if(ok){
+    state.locked = true;
+    showToast("Week locked — picks are now final.");
+  } else {
+    showToast("Couldn't lock right now — check connection and try again.");
+  }
+  render();
+}
 
 /* ============================= RESULTS CHECK (Anthropic API + web search) ============================= */
 async function checkResults(){
@@ -414,19 +522,9 @@ async function checkResults(){
 
 Games:
 ${gameList}`;
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6", max_tokens: 1000,
-        messages: [{ role: "user", content: prompt }],
-        tools: [{ type: "web_search_20250305", name: "web_search" }]
-      })
-    });
-    const data = await response.json();
-    const textBlocks = (data.content || []).filter(b => b.type === "text").map(b => b.text);
-    const joined = textBlocks.join("\n").trim();
-    const clean = joined.replace(/```json|```/g, "").trim();
+    const result = await workerCall({ method: "CLAUDE_API", claudeMethod: "confResults", prompt });
+    if(result.error) throw new Error(result.error);
+    const clean = (result.text || "").replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean.slice(clean.indexOf("{"), clean.lastIndexOf("}") + 1));
     await saveResults(parsed);
     state.results = parsed;
@@ -568,6 +666,7 @@ function renderMyPicks(container){
   const visibleGames = (isEd && state.tierFilter) ? games.filter(g => mine[g.id].tier === state.tierFilter) : games;
 
   container.innerHTML = `
+    ${lockedBannerHTML()}
     ${filterBarHTML}
     <div class="status-bar"><div class="status-pill ${meColorClass}"><span class="n">${doneCount}/${n}</span>Submitted</div></div>
     <div id="myGames"></div>
@@ -582,8 +681,7 @@ function renderMyPicks(container){
   visibleGames.forEach(g => {
     const p = mine[g.id]; const used = usedPointsInMyColumn(g.id);
     const favTeam = g.favorite === "home" ? g.homeAb : g.awayAb;
-    let options = `<option value="" ${p.pts==null?"selected":""}></option>`;
-    for(let i=1;i<=n;i++){ const isUsed = used.has(i) && p.pts !== i; options += `<option value="${i}" ${p.pts===i?"selected":""} ${isUsed?"disabled":""}>${i}</option>`; }
+    const options = ptsOptionsHTML(n, p.pts, used);
     const otherComplete = isComplete(state[state.identity==='ed'?'picksKirk':'picksEd'][g.id]);
     const bothIn = isComplete(state.picksEd[g.id]) && isComplete(state.picksKirk[g.id]);
     const tierObj = TIERS.find(t => t.key === p.tier);
@@ -594,24 +692,26 @@ function renderMyPicks(container){
         <div class="game-meta">${g.when}<br><span class="spread">${favTeam} -${g.spread}</span></div></div>
       <div class="picker-row">
         <div class="team-toggle">
-          <button type="button" class="team-btn ${p.team==='away'?'active '+meColorClass:''}" data-team="away">${g.awayAb}</button>
-          <button type="button" class="team-btn ${p.team==='home'?'active '+meColorClass:''}" data-team="home">${g.homeAb}</button>
+          <button type="button" class="team-btn ${p.team==='away'?'active '+meColorClass:''}" data-team="away" ${state.locked?"disabled":""}>${g.awayAb}</button>
+          <button type="button" class="team-btn ${p.team==='home'?'active '+meColorClass:''}" data-team="home" ${state.locked?"disabled":""}>${g.homeAb}</button>
         </div>
-        <select class="pts">${options}</select>
+        <select class="pts" ${state.locked?"disabled":""}>${options}</select>
       </div>
       ${state.identity === "ed" ? `
       <div class="tier-row">
-        ${TIERS.map(t => `<button type="button" class="tier-btn ${p.tier===t.key?'active':''}" data-tier="${t.key}" style="${p.tier===t.key?`background:${t.color};`:''}">${t.label}</button>`).join("")}
+        ${TIERS.map(t => `<button type="button" class="tier-btn ${p.tier===t.key?'active':''}" data-tier="${t.key}" style="${p.tier===t.key?`background:${t.color};`:''}" ${state.locked?"disabled":""}>${t.label}</button>`).join("")}
       </div>` : ""}
       <div class="status-note"><span>Other side</span><span class="badge ${bothIn?'ready':'waiting'}">${bothIn ? "Both in" : (otherComplete ? "Other side in" : "Waiting on other side")}</span></div>
     `;
-    card.querySelector('[data-team="away"]').onclick = () => setMyPick(g.id, "away", undefined);
-    card.querySelector('[data-team="home"]').onclick = () => setMyPick(g.id, "home", undefined);
-    card.querySelector("select").onchange = (e) => setMyPick(g.id, undefined, e.target.value === "" ? null : parseInt(e.target.value,10));
-    if(state.identity === "ed"){
-      card.querySelectorAll('[data-tier]').forEach(btn => {
-        btn.onclick = () => setMyTier(g.id, btn.dataset.tier);
-      });
+    if(!state.locked){
+      card.querySelector('[data-team="away"]').onclick = () => setMyPick(g.id, "away", undefined);
+      card.querySelector('[data-team="home"]').onclick = () => setMyPick(g.id, "home", undefined);
+      card.querySelector("select").onchange = (e) => setMyPick(g.id, undefined, e.target.value === "" ? null : parseInt(e.target.value,10));
+      if(state.identity === "ed"){
+        card.querySelectorAll('[data-tier]').forEach(btn => {
+          btn.onclick = () => setMyTier(g.id, btn.dataset.tier);
+        });
+      }
     }
     myGames.appendChild(card);
   });
@@ -620,53 +720,124 @@ function renderMyPicks(container){
 function renderCompare(container){
   const games = currentGames(); const n = currentN();
   let readyCount = 0; games.forEach(g => { if(bothSubmitted(g.id)) readyCount++; });
-  container.innerHTML = `<div class="status-bar"><div class="status-pill final"><span class="n">${readyCount}/${n}</span>Ready to compare</div></div><div id="compareGames"></div>`;
+  const errors = validateFinalForLock();
+
+  container.innerHTML = `
+    ${lockedBannerHTML()}
+    <div class="status-bar"><div class="status-pill final"><span class="n">${readyCount}/${n}</span>Ready to compare</div></div>
+    ${readyCount > 0 ? `<button type="button" class="btn ghost" id="compareAllBtn" style="margin-bottom:14px;">Compare All (${readyCount} ready)</button>` : ""}
+    <div id="compareGames"></div>
+    <div id="lockArea"></div>
+  `;
+  const compareAllBtn = document.getElementById("compareAllBtn");
+  if(compareAllBtn){
+    compareAllBtn.onclick = () => {
+      games.forEach(g => { if(bothSubmitted(g.id)) state.revealed[g.id] = true; });
+      render();
+    };
+  }
   const holder = document.getElementById("compareGames");
   games.forEach(g => {
     const ready = bothSubmitted(g.id); const favTeam = g.favorite === "home" ? g.homeAb : g.awayAb;
+    const revealed = !!state.revealed[g.id];
     const card = document.createElement("div"); card.className = "game-card";
     let body;
-    if(!ready){ body = `<div class="status-note"><span>Waiting on both picks before this can be compared.</span></div>`; }
-    else{
+    if(!ready){
+      body = `<div class="status-note"><span>Waiting on both picks before this can be compared.</span></div>`;
+    } else if(!revealed){
+      body = `<button type="button" class="reveal-btn" data-reveal="${g.id}">Compare picks</button>`;
+    } else {
       const ed = state.picksEd[g.id], kirk = state.picksKirk[g.id];
       const edTeamAb = ed.team === "away" ? g.awayAb : g.homeAb;
       const kirkTeamAb = kirk.team === "away" ? g.awayAb : g.homeAb;
       const agree = ed.team === kirk.team;
-      body = `<div class="compare-row ed"><div class="clabel">Ed</div><div class="compare-pick">${edTeamAb}</div><div class="compare-pts">${ed.pts}</div>${!agree?'<span class="agree-tag diff">differ</span>':''}</div>
-              <div class="compare-row kirk"><div class="clabel">Kirk</div><div class="compare-pick">${kirkTeamAb}</div><div class="compare-pts">${kirk.pts}</div></div>`;
+      // Auto-fill Final's team when they agree and Final hasn't been set yet (never overwrite a manual choice).
+      if(agree && !state.final[g.id].team && !state.locked){
+        state.final[g.id] = { ...state.final[g.id], team: ed.team };
+        saveFinal(g.id, ed.team, state.final[g.id].pts);
+      }
+      const f = state.final[g.id];
+      const usedFinal = usedPointsInFinal(g.id);
+      const finalOptions = ptsOptionsHTML(n, f.pts, usedFinal);
+      body = `
+        <div class="compare-row ed"><div class="clabel">Ed</div><div class="compare-pick">${edTeamAb}</div><div class="compare-pts">${ed.pts}</div>${!agree?'<span class="agree-tag diff">differ</span>':''}</div>
+        <div class="compare-row kirk"><div class="clabel">Kirk</div><div class="compare-pick">${kirkTeamAb}</div><div class="compare-pts">${kirk.pts}</div></div>
+        <div class="compare-final-block">
+          <div class="compare-final-label">Final ${agree ? "(agreed)" : "— choose one"}</div>
+          <div class="picker-row">
+            <div class="team-toggle">
+              <button type="button" class="team-btn ${f.team==='away'?'active final':''}" data-fteam="away" ${state.locked?"disabled":""}>${g.awayAb}</button>
+              <button type="button" class="team-btn ${f.team==='home'?'active final':''}" data-fteam="home" ${state.locked?"disabled":""}>${g.homeAb}</button>
+            </div>
+            <select class="pts" data-fpts ${state.locked?"disabled":""}>${finalOptions}</select>
+          </div>
+        </div>
+        ${!state.locked ? `<button type="button" class="hide-link" data-hide="${g.id}">hide</button>` : ""}
+      `;
     }
     card.innerHTML = `<div class="game-header"><div class="matchup">${g.awayAb}<span class="at">@</span>${g.homeAb}</div>
       <div class="game-meta">${g.when}<br><span class="spread">${favTeam} -${g.spread}</span></div></div>${body}`;
+
+    const revealBtn = card.querySelector('[data-reveal]');
+    if(revealBtn) revealBtn.onclick = () => { state.revealed[g.id] = true; render(); };
+    const hideBtn = card.querySelector('[data-hide]');
+    if(hideBtn) hideBtn.onclick = () => { state.revealed[g.id] = false; render(); };
+    if(revealed && ready && !state.locked){
+      const fAway = card.querySelector('[data-fteam="away"]');
+      const fHome = card.querySelector('[data-fteam="home"]');
+      if(fAway) fAway.onclick = () => setFinalPick(g.id, "away", undefined);
+      if(fHome) fHome.onclick = () => setFinalPick(g.id, "home", undefined);
+      const fSel = card.querySelector('[data-fpts]');
+      if(fSel) fSel.onchange = (e) => setFinalPick(g.id, undefined, e.target.value === "" ? null : parseInt(e.target.value,10));
+    }
     holder.appendChild(card);
   });
+
+  const lockArea = document.getElementById("lockArea");
+  if(state.locked){
+    lockArea.innerHTML = `<div class="hint-text" style="text-align:center;margin-top:12px;">🔒 This week is locked. Final picks are official.</div>`;
+  } else {
+    lockArea.innerHTML = `
+      ${errors.length ? `<div class="lock-summary"><strong>Not ready to lock yet:</strong><ul>${errors.map(e=>`<li>${e}</li>`).join("")}</ul></div>` : ""}
+      <button class="btn primary" id="lockBtn" style="margin-top:14px;">Lock Picks for ${WEEKS[state.week].label}</button>
+      <div class="hint-text" style="text-align:center;">This locks everyone's picks and the Final column for good — only do this once you're both ready.</div>
+    `;
+    document.getElementById("lockBtn").onclick = async () => {
+      if(!confirm(`Lock ${WEEKS[state.week].label}? Neither of you will be able to change picks after this.`)) return;
+      await attemptLockWeek();
+    };
+  }
 }
 
 function renderFinal(container){
   const games = currentGames(); const n = currentN();
   let doneCount = 0; games.forEach(g => { if(isComplete(state.final[g.id])) doneCount++; });
-  container.innerHTML = `<div class="status-bar"><div class="status-pill final"><span class="n">${doneCount}/${n}</span>Final set</div></div>
-    <div class="hint-text" style="margin-bottom:12px;">Open to both of you — no PIN. Whoever's finalizing that week's picks sets this after comparing.</div>
+  container.innerHTML = `
+    ${lockedBannerHTML()}
+    <div class="status-bar"><div class="status-pill final"><span class="n">${doneCount}/${n}</span>Final set</div></div>
+    <div class="hint-text" style="margin-bottom:12px;">Open to both of you — no PIN. This is easiest to fill out via the Compare tab's Final column, but you can also set it directly here.</div>
     <div id="finalGames"></div>`;
   const holder = document.getElementById("finalGames");
   games.forEach(g => {
     const p = state.final[g.id]; const used = usedPointsInFinal(g.id);
     const favTeam = g.favorite === "home" ? g.homeAb : g.awayAb;
-    let options = `<option value="" ${p.pts==null?"selected":""}></option>`;
-    for(let i=1;i<=n;i++){ const isUsed = used.has(i) && p.pts !== i; options += `<option value="${i}" ${p.pts===i?"selected":""} ${isUsed?"disabled":""}>${i}</option>`; }
+    const options = ptsOptionsHTML(n, p.pts, used);
     const card = document.createElement("div"); card.className = "game-card";
     card.innerHTML = `
       <div class="game-header"><div class="matchup">${g.awayAb}<span class="at">@</span>${g.homeAb}</div>
         <div class="game-meta">${g.when}<br><span class="spread">${favTeam} -${g.spread}</span></div></div>
       <div class="picker-row">
         <div class="team-toggle">
-          <button type="button" class="team-btn ${p.team==='away'?'active final':''}" data-team="away">${g.awayAb}</button>
-          <button type="button" class="team-btn ${p.team==='home'?'active final':''}" data-team="home">${g.homeAb}</button>
+          <button type="button" class="team-btn ${p.team==='away'?'active final':''}" data-team="away" ${state.locked?"disabled":""}>${g.awayAb}</button>
+          <button type="button" class="team-btn ${p.team==='home'?'active final':''}" data-team="home" ${state.locked?"disabled":""}>${g.homeAb}</button>
         </div>
-        <select class="pts">${options}</select>
+        <select class="pts" ${state.locked?"disabled":""}>${options}</select>
       </div>`;
-    card.querySelector('[data-team="away"]').onclick = () => setFinalPick(g.id, "away", undefined);
-    card.querySelector('[data-team="home"]').onclick = () => setFinalPick(g.id, "home", undefined);
-    card.querySelector("select").onchange = (e) => setFinalPick(g.id, undefined, e.target.value === "" ? null : parseInt(e.target.value,10));
+    if(!state.locked){
+      card.querySelector('[data-team="away"]').onclick = () => setFinalPick(g.id, "away", undefined);
+      card.querySelector('[data-team="home"]').onclick = () => setFinalPick(g.id, "home", undefined);
+      card.querySelector("select").onchange = (e) => setFinalPick(g.id, undefined, e.target.value === "" ? null : parseInt(e.target.value,10));
+    }
     holder.appendChild(card);
   });
 }
