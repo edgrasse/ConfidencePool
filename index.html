@@ -107,6 +107,30 @@
   .agree-tag.diff{ background: var(--bad); color: #fff; }
   .compare-final-block{ border-top: 1.5px dashed var(--line); padding-top: 2px; margin-top: 2px; }
   .compare-final-label{ padding: 8px 12px 0; font-size: 11px; font-weight: 700; color: var(--gold); text-transform: uppercase; letter-spacing: 0.03em; }
+
+  .compare-cols{
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.15fr;
+    gap: 6px;
+    padding: 10px 12px 4px;
+  }
+  .ccol{
+    background: var(--turf-dark);
+    border-radius: 8px;
+    padding: 8px 6px;
+    text-align: center;
+  }
+  .ccol.final{ background: rgba(212,162,78,0.10); border: 1px solid var(--gold-dim); }
+  .cc-label{ font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 5px; }
+  .ccol.you .cc-label{ color: var(--ed-accent); }
+  .ccol.kirk .cc-label{ color: var(--kirk-accent); }
+  .ccol.final .cc-label{ color: var(--gold); }
+  .cc-team{ font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+  .cc-pts{ font-size: 13px; font-weight: 700; color: var(--chalk-dim); }
+  .cc-final-teams{ display:flex; gap: 3px; margin-bottom: 5px; }
+  .cc-final-teams .team-btn{ font-size: 11px; padding: 6px 2px; }
+  .ccol.final select.pts{ width: 100%; }
+  .disagree-note{ text-align:center; font-size: 10.5px; color: var(--bad); padding: 0 12px 8px; font-weight: 600; }
   .reveal-btn{
     margin: 10px 12px 12px; width: calc(100% - 24px);
     background: var(--gold); color: #2A2110; border: none;
@@ -760,18 +784,27 @@ function renderCompare(container){
       const usedFinal = usedPointsInFinal(g.id);
       const finalOptions = ptsOptionsHTML(n, f.pts, usedFinal);
       body = `
-        <div class="compare-row ed"><div class="clabel">Ed</div><div class="compare-pick">${edTeamAb}</div><div class="compare-pts">${ed.pts}</div>${!agree?'<span class="agree-tag diff">differ</span>':''}</div>
-        <div class="compare-row kirk"><div class="clabel">Kirk</div><div class="compare-pick">${kirkTeamAb}</div><div class="compare-pts">${kirk.pts}</div></div>
-        <div class="compare-final-block">
-          <div class="compare-final-label">Final ${agree ? "(agreed)" : "— choose one"}</div>
-          <div class="picker-row">
-            <div class="team-toggle">
+        <div class="compare-cols">
+          <div class="ccol you">
+            <div class="cc-label">You</div>
+            <div class="cc-team">${edTeamAb}</div>
+            <div class="cc-pts">${ed.pts}</div>
+          </div>
+          <div class="ccol kirk">
+            <div class="cc-label">Kirk</div>
+            <div class="cc-team">${kirkTeamAb}</div>
+            <div class="cc-pts">${kirk.pts}</div>
+          </div>
+          <div class="ccol final">
+            <div class="cc-label">Final</div>
+            <div class="cc-final-teams">
               <button type="button" class="team-btn ${f.team==='away'?'active final':''}" data-fteam="away" ${state.locked?"disabled":""}>${g.awayAb}</button>
               <button type="button" class="team-btn ${f.team==='home'?'active final':''}" data-fteam="home" ${state.locked?"disabled":""}>${g.homeAb}</button>
             </div>
             <select class="pts" data-fpts ${state.locked?"disabled":""}>${finalOptions}</select>
           </div>
         </div>
+        ${!agree ? `<div class="disagree-note">You differ on the winner — choose Final above.</div>` : ""}
         ${!state.locked ? `<button type="button" class="hide-link" data-hide="${g.id}">hide</button>` : ""}
       `;
     }
