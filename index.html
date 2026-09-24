@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAE60lEQVR4nLWXXWhc1RbHf+vsfeacZhIzzaSZNhXbmmobPynaglqviKi9+IEi7YPX+iAKSvFFBMEnUfFF8U1F8U1QQbxXlOtH8ANt9YqiiKBtUlPrbY35apM0mcnMnLP38uFMqiJ2Jk1ccM7L4ez1X2v//+tDAAkE9QpnXXHxnhvP77ij1GG2CJJTVUFYmimIoE7xv5xIvx84UH798L5vnhIoKwSiioh0dt68q//l27Z0/vPwsTqDY1W8V0RAdWn+F84IAthUilnfHfPql1PfvDMwsUtmDx0UwNy8c+vbuy/vue7J90aS/aN1Y40ES4z7z0CAxKn2l3Lpg9etCV/cNzE88J/BbbLp8ovuffim3uee/XgsGRqvh115i/NLDPsvzATC8XLKOatyyZ6rS+Ejb468YK86r/3uw8dq+v1ozfR0hCTu73EO4J3SlbfsH6vbHyeqellf279sb4e9eHB0XqwJZLGRS+O1wFNVaHaC84o1IkNjVTb2RHkbBGIXG3TQ8Jh6SFPFN8DYAEKTfWwWi1MwglqFRSktECjXPapQzBuK+ZDIColTpiqOibLDeSWfOzWPGz7FtupYyNI7V/NsW9fGLRedQX8poiMKCI3gFE5UHT8dT3jvwCwfDpVPZupU1jIAgHqq3H9VkTsuXQmAVyWyQuozgCtXGDb1RPR15/j0UIVaqhg5NS9aAhAIzNY8920vcs9lXYzPpUQ2YGbe8d/vZhmerBGI0Ntp2d6Xp6vNtBR9SwACgflEubA3ZvfWAhNzKbENGJtNeOCNUQ6O104Sz3nl5a9m2HJmfPL/ZvxuCkAE6k7Z0d9BbIVKPWP6M3uP88N4jZ52S+q1IUnBeeXzwxXiMFgeDngPbaHQX4qoOSUOA45OJ3x9ZJ4zVhjqv9dwo3Hkc0FTGS7YKbUiZHrNRwGFFQbnlNDA2GxKue7/MsLF1LOmTUeBQITgd2xOvS65S7YEIHMO1cQzn3gCEbyHztiQs7IsIJpmwAjM1T1HphJyVqimyrqukLWdIfVUsY0ThIywJhCU5uxvGcDCQPHJcBkjkLiszN65rUA1VSr17DqcZoVquuKwArYBZMkAnM9Y/cFQma+OztOdN0xVHNdubufxG0qsL4bkrBCHwtpCyO5tBR69oURositqpsSWK2HilMfeHefpW9ewsTtiet6xo7+dK/vamJhziEAhNqzptIycSPAtSqGl0csrRFYYmUnZ89oI//52BpcNkxTaDOetjugvRXS3G2aqnq+PVElcNlM2s5abkVdYEQrT845H3x3n7GKOC9bErC2EtIVCzSmjMyn7x2r8MFnDiGT8WS4ACyBCI+SMcHQ6YXiy/icHOSPEtjUCLhoA/DZ2LRDvjzTLFLGYSmgXBo3TAZK1gdOrRgt/BalXNUvdfk7DjGQSD36eToY2lWJNnXrT6hSxFMeBkDrl3FKkBydqSfDxYPmV9ati6S/l3PFySmiyxvN3PKHJFpPNq6N0Q3csnw1X3hEoduy4te9/d23vPv+pgV+S/WP1MDSts7hVa6xmbF4dpQ9e02Of33ds5sPPRi8REdCOvo3XX1t86/atKzf/OF5jaLyKV5Z9OT13VcSGVTEvfTE1+f63M7tkePAjIcuOV3qL67Z3P/GPvvzODV25gg1AleVaz0k9OnysXtl7qDzw/wNzD8nkoYPKTvMr3k0hSdbQju4AAAAASUVORK5CYII=">
+<link rel="apple-touch-icon" href="data:image/png;base64,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">
 <title>Confidence Pool</title>
 <style>
   :root{
@@ -131,6 +133,7 @@
   .cc-final-teams .team-btn{ font-size: 11px; padding: 6px 2px; }
   .ccol.final select.pts{ width: 100%; }
   .disagree-note{ text-align:center; font-size: 10.5px; color: var(--bad); padding: 0 12px 8px; font-weight: 600; }
+  .build-footer{ text-align:center; font-size: 10px; color: var(--chalk-dim); opacity: 0.55; margin: 28px 0 6px; letter-spacing: 0.02em; }
   .reveal-btn{
     margin: 10px 12px 12px; width: calc(100% - 24px);
     background: var(--gold); color: #2A2110; border: none;
@@ -163,6 +166,7 @@
 <body>
 
 <div id="app"><div class="loading">Loading…</div></div>
+<div class="build-footer">Confidence Pool · Build 1.9.0 · Sept 24, 2026</div>
 
 <script>
 /* ============================= SHARED INFRA CLIENT ============================= */
@@ -232,10 +236,55 @@ const WEEKS = {
       { id: "g16", away: "Giants",    home: "Rams",       awayAb: "NYG", homeAb: "LAR", favorite: "home", spread: 7.5, when: "Mon 9/21 · 8:15p ET" },
     ]
   },
+  week3: {
+    label: "Week 3",
+    dateRange: "Sept 24-28, 2026",
+    games: [
+      { id: "g1",  away: "Falcons",   home: "Packers",    awayAb: "ATL", homeAb: "GB",  favorite: "home", spread: 7,   when: "Thu 9/24 · 8:15p ET" },
+      { id: "g2",  away: "Panthers",  home: "Browns",     awayAb: "CAR", homeAb: "CLE", favorite: "away", spread: 2.5, when: "Sun 9/27 · 1:00p ET" },
+      { id: "g3",  away: "Bengals",   home: "Steelers",   awayAb: "CIN", homeAb: "PIT", favorite: "away", spread: 3.5, when: "Sun 9/27 · 1:00p ET" },
+      { id: "g4",  away: "Texans",    home: "Colts",      awayAb: "HOU", homeAb: "IND", favorite: "away", spread: 1.5, when: "Sun 9/27 · 1:00p ET" },
+      { id: "g5",  away: "Chiefs",    home: "Dolphins",   awayAb: "KC",  homeAb: "MIA", favorite: "away", spread: 10.5,when: "Sun 9/27 · 1:00p ET" },
+      { id: "g6",  away: "Chargers",  home: "Bills",      awayAb: "LAC", homeAb: "BUF", favorite: "home", spread: 6.5, when: "Sun 9/27 · 1:00p ET" },
+      { id: "g7",  away: "Patriots",  home: "Jaguars",    awayAb: "NE",  homeAb: "JAX", favorite: "home", spread: 1.5, when: "Sun 9/27 · 1:00p ET" },
+      { id: "g8",  away: "Jets",      home: "Lions",      awayAb: "NYJ", homeAb: "DET", favorite: "home", spread: 7,   when: "Sun 9/27 · 1:00p ET" },
+      { id: "g9",  away: "Seahawks",  home: "Commanders", awayAb: "SEA", homeAb: "WAS", favorite: "away", spread: 4.5, when: "Sun 9/27 · 1:00p ET" },
+      { id: "g10", away: "Titans",    home: "Giants",     awayAb: "TEN", homeAb: "NYG", favorite: "home", spread: 5.5, when: "Sun 9/27 · 1:00p ET" },
+      { id: "g11", away: "Cardinals", home: "49ers",      awayAb: "ARI", homeAb: "SF",  favorite: "home", spread: 8.5, when: "Sun 9/27 · 4:05p ET" },
+      { id: "g12", away: "Vikings",   home: "Buccaneers", awayAb: "MIN", homeAb: "TB",  favorite: "away", spread: 2.5, when: "Sun 9/27 · 4:05p ET" },
+      { id: "g13", away: "Ravens",    home: "Cowboys",    awayAb: "BAL", homeAb: "DAL", favorite: "away", spread: 3,   when: "Sun 9/27 · 4:25p ET (Rio de Janeiro)" },
+      { id: "g14", away: "Raiders",   home: "Saints",     awayAb: "LV",  homeAb: "NO",  favorite: "home", spread: 3,   when: "Sun 9/27 · 4:25p ET" },
+      { id: "g15", away: "Rams",      home: "Broncos",    awayAb: "LAR", homeAb: "DEN", favorite: "away", spread: 2.5, when: "Sun 9/27 · 8:20p ET" },
+      { id: "g16", away: "Eagles",    home: "Bears",      awayAb: "PHI", homeAb: "CHI", favorite: "away", spread: 4.5, when: "Mon 9/28 · 8:15p ET" },
+    ]
+  },
 };
-const WEEK_ORDER = ["week1", "week2"]; // add future week ids here in order
+const WEEK_ORDER = [];
+for(let n = 1; n <= 18; n++) WEEK_ORDER.push("week" + n);
 
-function currentGames(){ return WEEKS[state.week].games; }
+// Auto-generate label/dateRange for weeks 4-18 (weeks 1-3 already defined above
+// with hand-verified real matchups). Approximate date span — just a label.
+(function fillFutureWeeks(){
+  const week1Start = Date.UTC(2026, 8, 9); // Sept 9, 2026
+  for(let n = 4; n <= 18; n++){
+    const start = new Date(week1Start + (n - 1) * 7 * 86400000);
+    const end = new Date(start.getTime() + 5 * 86400000);
+    const fmt = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    WEEKS["week" + n] = {
+      label: "Week " + n,
+      dateRange: `${fmt(start)}-${fmt(end)}, 2026`,
+      games: null, // not hardcoded — loaded on demand via Load Schedule
+    };
+  }
+})();
+
+// currentGames()/currentN() — weeks 1-3 are static (hardcoded above);
+// weeks 4+ come from the shared Supabase-cached schedule, loaded on demand.
+function currentGames(){
+  const w = WEEKS[state.week];
+  if(w.games) return w.games;
+  return state.scheduleCache[state.week] || [];
+}
 function currentN(){ return currentGames().length; }
 
 // Ed's private confidence-tier scale — never shown to Kirk, purely a personal aid
@@ -257,12 +306,18 @@ const PRESET_WEEK1 = {
 /* ============================= STATE ============================= */
 let state = {
   identity: null, unlocked: false, screen: "identity", tab: "picks",
-  week: "week2", // default to the most recent open week
+  week: "week3", // default to the most recent open week
   picksEd: {}, picksKirk: {}, final: {}, results: null,
   connectionOK: true, pinError: "", pinDraft: "", awaitingConfirm: false,
   tierFilter: null, // Ed-only: filter My Picks by tier ('low'|'lowmed'|'med'|'medhigh'|'high'|null=all)
   locked: false, // whether the currently selected week is locked
   revealed: {}, // gameId -> true, per-game manual compare reveal (session-local, resets on week switch)
+  resultsView: "week", // "week" | "season"
+  seasonData: null, // cached array from loadSeasonSummary()
+  seasonLoading: false,
+  seasonSort: { col: "week", dir: "asc" },
+  scheduleCache: {}, // weekId -> games array, for weeks loaded from ConfSchedule (weeks 4+)
+  scheduleLoading: false,
 };
 function resetPicksShape(){
   state.picksEd = {}; state.picksKirk = {}; state.final = {};
@@ -361,6 +416,58 @@ async function saveResults(resultsObj){
   }
 }
 
+// ============================================================
+// Weekly schedule cache (weeks 4+) — self-serve, no manual updates needed.
+// Weeks 1-3 are hardcoded above and never touch this.
+// ============================================================
+async function getScheduleFromDB(weekId){
+  try{
+    const rows = await sbGet('ConfSchedule', `week=eq.${weekId}&order=game_id.asc`);
+    state.connectionOK = true;
+    if(!rows || rows.length === 0) return null;
+    // game_id like "g1".."g16" — sort numerically, not lexically
+    const sorted = [...rows].sort((a,b) => parseInt(a.game_id.slice(1)) - parseInt(b.game_id.slice(1)));
+    return sorted.map(r => ({
+      id: r.game_id, away: r.away, home: r.home, awayAb: r.away_ab, homeAb: r.home_ab,
+      when: r.when_text, favorite: r.favorite, spread: r.spread,
+    }));
+  }catch(e){ state.connectionOK = false; return null; }
+}
+async function saveScheduleToDB(weekId, games){
+  for(const g of games){
+    try{
+      await sbUpsert('ConfSchedule', {
+        week: weekId, game_id: g.id, away: g.away, home: g.home,
+        away_ab: g.awayAb, home_ab: g.homeAb, when_text: g.when,
+        favorite: g.favorite || null, spread: g.spread != null ? g.spread : null,
+      }, 'week,game_id');
+    }catch(e){ state.connectionOK = false; }
+  }
+}
+// Tries the shared DB cache first (cheap, silent); only hits the AI+search
+// path when explicitly asked to (Load/Refresh Schedule button).
+async function ensureScheduleLoaded(weekId){
+  if(WEEKS[weekId].games) return; // week 1-3, always available
+  if(state.scheduleCache[weekId]) return; // already loaded this session
+  const cached = await getScheduleFromDB(weekId);
+  if(cached && cached.length) state.scheduleCache[weekId] = cached;
+}
+async function fetchScheduleFromAI(weekId){
+  const wNum = weekId.replace("week", "");
+  const prompt = `Search the web for the NFL "Week ${wNum}" 2026 regular season schedule (all games for that week — should be around 13-16 games depending on byes), and the current DraftKings point spread for each game. Respond with ONLY a JSON array, no other text, no markdown fences, one object per game, in actual kickoff order (earliest game first):
+[{"away":"Team Name","home":"Team Name","awayAb":"2-3 LETTER ABBREVIATION","homeAb":"2-3 LETTER ABBREVIATION","when":"Day M/D · H:MMp ET","favorite":"away","spread":3.5}]
+Use standard NFL team abbreviations (e.g. BUF, KC, SF, NYG). "favorite" is "away" or "home" — whichever side DraftKings favors. If a DraftKings spread isn't posted yet for a game, set "favorite" and "spread" to null. Return ONLY the JSON array, nothing else.`;
+  const result = await workerCall({ method: "CLAUDE_API", claudeMethod: "confResults", prompt });
+  if(result.error) throw new Error(result.error);
+  const clean = (result.text || "").replace(/```json|```/g, "").trim();
+  const arr = JSON.parse(clean.slice(clean.indexOf("["), clean.lastIndexOf("]") + 1));
+  if(!Array.isArray(arr) || arr.length === 0) throw new Error("No games returned");
+  const games = arr.map((g, i) => ({ id: "g" + (i + 1), ...g }));
+  await saveScheduleToDB(weekId, games);
+  state.scheduleCache[weekId] = games;
+  return games;
+}
+
 async function getLock(){
   try{
     const rows = await sbGet('ConfWeekLock', `week=eq.${state.week}`);
@@ -389,6 +496,7 @@ async function switchWeek(weekId){
   state.week = weekId;
   state.tierFilter = null;
   state.revealed = {};
+  await ensureScheduleLoaded(weekId);
   await loadAll();
   render();
 }
@@ -408,6 +516,7 @@ async function submitPinCreate(pin){
   const hash = await sha256(state.identity + ":" + pin);
   await setAuth(state.identity, hash);
   state.unlocked = true; state.screen = "app";
+  await ensureScheduleLoaded(state.week);
   await loadAll(); render();
 }
 async function submitPinEnter(pin){
@@ -415,6 +524,7 @@ async function submitPinEnter(pin){
   const hash = await sha256(state.identity + ":" + pin);
   if(auth && auth.pin_hash === hash){
     state.unlocked = true; state.screen = "app"; state.pinError = "";
+    await ensureScheduleLoaded(state.week);
     await loadAll(); render();
   } else { state.pinError = "Wrong PIN. Try again."; render(); }
 }
@@ -542,7 +652,7 @@ async function checkResults(){
   try{
     const wk = WEEKS[state.week];
     const gameList = wk.games.map(g => `${g.id}: ${g.awayAb} (away) at ${g.homeAb} (home)`).join("\n");
-    const prompt = `Search the web for NFL ${wk.label} 2026 final scores (games played ${wk.dateRange}). For each game below, determine which side won: "away" or "home". Respond with ONLY a JSON object, no other text, no markdown fences, mapping game id to an object with "winner" ("away"/"home") and "score" as "awayScore-homeScore". Example: {"g1": {"winner":"home","score":"10-13"}}.
+    const prompt = `Search the web for NFL ${wk.label} 2026 scores (games scheduled ${wk.dateRange}). Some of these games may not have kicked off yet, may be in progress, or may not have final scores available yet — that's expected and fine. For each game below, check whether it has an official FINAL score. Respond with ONLY a JSON object, no other text, no markdown fences: include a key for every game that has a confirmed final score (mapping to an object with "winner" as "away" or "home", and "score" as "awayScore-homeScore"), and simply OMIT the key entirely for any game that hasn't finished yet, is in progress, or you can't confirm. Do not guess or include an entry unless you're confident the game is actually over. Example: {"g1": {"winner":"home","score":"10-13"}}.
 
 Games:
 ${gameList}`;
@@ -550,9 +660,13 @@ ${gameList}`;
     if(result.error) throw new Error(result.error);
     const clean = (result.text || "").replace(/```json|```/g, "").trim();
     const parsed = JSON.parse(clean.slice(clean.indexOf("{"), clean.lastIndexOf("}") + 1));
-    await saveResults(parsed);
-    state.results = parsed;
-    showToast("Results updated.");
+    const foundCount = Object.keys(parsed).length;
+    if(foundCount > 0) await saveResults(parsed);
+    state.results = await getResults(); // reload the full merged set from the DB, not just this response
+    const totalGames = currentGames().length;
+    if(foundCount === 0) showToast("No final scores found yet — check back once games wrap up.");
+    else if(foundCount < totalGames) showToast(`${foundCount} of ${totalGames} games final so far — updated.`);
+    else showToast("All games final — results updated.");
   }catch(e){
     showToast("Couldn't fetch results automatically. Try again shortly.");
     console.error(e);
@@ -571,6 +685,50 @@ function weekTotal(picksObj){
   let total = 0;
   currentGames().forEach(g => { const pe = pointsEarned(picksObj, g.id); if(pe != null) total += pe; });
   return total;
+}
+
+// State-independent scoring, used by the season summary so it can score every
+// week without disturbing whichever week is currently on screen.
+function calcTotalFor(picksMap, resultsMap){
+  let total = 0, correct = 0, scored = 0;
+  Object.keys(resultsMap).forEach(gameId => {
+    const r = resultsMap[gameId];
+    const p = picksMap[gameId];
+    if(!p || !p.team || p.pts == null) return;
+    scored++;
+    if(p.team === r.winner){ total += p.pts; correct++; }
+  });
+  return { total, correct, scored };
+}
+
+async function getWeekSummary(weekId){
+  try{
+    const [edRows, kirkRows, finalRows, resultRows] = await Promise.all([
+      sbGet('ConfPicks', `week=eq.${weekId}&identity=eq.ed`),
+      sbGet('ConfPicks', `week=eq.${weekId}&identity=eq.kirk`),
+      sbGet('ConfFinal', `week=eq.${weekId}`),
+      sbGet('ConfResults', `week=eq.${weekId}`),
+    ]);
+    if(!resultRows || resultRows.length === 0) return null; // not scored yet — skip from season view
+    const resultsMap = {}; resultRows.forEach(r => resultsMap[r.game_id] = {winner:r.winner, score:r.score});
+    const toMap = (rows) => { const m = {}; (rows||[]).forEach(r => m[r.game_id] = {team:r.team, pts:r.pts}); return m; };
+    return {
+      week: weekId,
+      label: WEEKS[weekId].label,
+      ed: calcTotalFor(toMap(edRows), resultsMap),
+      kirk: calcTotalFor(toMap(kirkRows), resultsMap),
+      final: calcTotalFor(toMap(finalRows), resultsMap),
+    };
+  }catch(e){ return null; }
+}
+
+async function loadSeasonSummary(){
+  const rows = [];
+  for(const wk of WEEK_ORDER){
+    const s = await getWeekSummary(wk);
+    if(s) rows.push(s);
+  }
+  return rows;
 }
 
 function showToast(msg){
@@ -640,6 +798,7 @@ function renderPinEnter(app){
 function renderApp(app){
   const meLabel = state.identity === "ed" ? "Ed" : "Kirk";
   const weekOptions = WEEK_ORDER.map(wk => `<option value="${wk}" ${wk===state.week?"selected":""}>${WEEKS[wk].label}</option>`).join("");
+  const needsSchedule = !WEEKS[state.week].games && currentGames().length === 0;
   app.innerHTML = `
     <div class="page-head" style="border-bottom:none;padding-bottom:0;"><div class="kicker">CONFIDENCE POOL</div></div>
     <div class="topbar">
@@ -649,23 +808,58 @@ function renderApp(app){
     <div class="field-label" style="margin-top:0;">Week</div>
     <select class="pts" id="weekSelect" style="width:100%;text-align:left;text-align-last:left;margin-bottom:14px;">${weekOptions}</select>
     ${!state.connectionOK ? `<div class="backup-panel warn"><div class="backup-title">Connection issue</div><div class="backup-desc">Couldn't reach the database just now. Your last saved picks are shown below — try your action again in a moment.</div></div>` : ""}
-    <div class="tabs">
-      <button class="tab ${state.tab==='picks'?'active':''}" data-tab="picks">My Picks</button>
-      <button class="tab ${state.tab==='compare'?'active':''}" data-tab="compare">Compare</button>
-      <button class="tab ${state.tab==='final'?'active':''}" data-tab="final">Final</button>
-      <button class="tab ${state.tab==='results'?'active':''}" data-tab="results">Results</button>
-    </div>
-    <div id="tabContent"></div>
+    ${needsSchedule ? `
+      <div class="backup-panel">
+        <div class="backup-title">${WEEKS[state.week].label} schedule not loaded yet</div>
+        <div class="backup-desc">Matchups are fixed for the season but spreads aren't posted until close to kickoff. Tap below to fetch this week's games and current DraftKings lines — it only needs to be done once, and either of you can do it.</div>
+        <button class="btn primary" id="loadScheduleBtn" style="margin-top:10px;" ${state.scheduleLoading?"disabled":""}>${state.scheduleLoading ? "Loading…" : "Load " + WEEKS[state.week].label + " Schedule"}</button>
+      </div>
+    ` : `
+      ${!WEEKS[state.week].games ? `<button class="btn ghost" id="refreshScheduleBtn" style="margin-bottom:14px;" ${state.scheduleLoading?"disabled":""}>${state.scheduleLoading ? "Refreshing…" : "Refresh spreads for " + WEEKS[state.week].label}</button>` : ""}
+      <div class="tabs">
+        <button class="tab ${state.tab==='picks'?'active':''}" data-tab="picks">My Picks</button>
+        <button class="tab ${state.tab==='compare'?'active':''}" data-tab="compare">Compare</button>
+        <button class="tab ${state.tab==='final'?'active':''}" data-tab="final">Final</button>
+        <button class="tab ${state.tab==='results'?'active':''}" data-tab="results">Results</button>
+      </div>
+      <div id="tabContent"></div>
+    `}
     <div class="toast" id="toast"></div>
   `;
   document.getElementById("logoutBtn").onclick = logout;
   document.getElementById("weekSelect").onchange = (e) => switchWeek(e.target.value);
+
+  const loadBtn = document.getElementById("loadScheduleBtn");
+  if(loadBtn) loadBtn.onclick = () => handleLoadSchedule(state.week);
+  const refreshBtn = document.getElementById("refreshScheduleBtn");
+  if(refreshBtn) refreshBtn.onclick = () => handleLoadSchedule(state.week);
+
+  if(needsSchedule) return;
+
   app.querySelectorAll(".tab").forEach(t => t.onclick = () => { state.tab = t.dataset.tab; render(); });
   const content = document.getElementById("tabContent");
   if(state.tab === "picks") renderMyPicks(content);
   else if(state.tab === "compare") renderCompare(content);
   else if(state.tab === "final") renderFinal(content);
   else renderResults(content);
+}
+
+async function handleLoadSchedule(weekId){
+  state.scheduleLoading = true; render();
+  try{
+    await fetchScheduleFromAI(weekId);
+    resetPicksShape();
+    const [ed, kirk, fin, res] = await Promise.all([
+      getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
+    ]);
+    state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
+    showToast("Schedule loaded.");
+  }catch(e){
+    showToast("Couldn't load the schedule — try again in a moment.");
+    console.error(e);
+  }
+  state.scheduleLoading = false;
+  render();
 }
 
 function renderMyPicks(container){
@@ -876,6 +1070,31 @@ function renderFinal(container){
 }
 
 function renderResults(container){
+  container.innerHTML = `
+    <div class="tabs" style="margin-bottom:14px;">
+      <button class="tab ${state.resultsView==='week'?'active':''}" data-rview="week">This Week</button>
+      <button class="tab ${state.resultsView==='season'?'active':''}" data-rview="season">Season</button>
+    </div>
+    <div id="resultsBody"></div>
+  `;
+  container.querySelectorAll('[data-rview]').forEach(btn => {
+    btn.onclick = async () => {
+      state.resultsView = btn.dataset.rview;
+      if(state.resultsView === "season" && !state.seasonData && !state.seasonLoading){
+        state.seasonLoading = true;
+        render();
+        state.seasonData = await loadSeasonSummary();
+        state.seasonLoading = false;
+      }
+      render();
+    };
+  });
+  const body = document.getElementById("resultsBody");
+  if(state.resultsView === "week") renderResultsWeek(body);
+  else renderResultsSeason(body);
+}
+
+function renderResultsWeek(container){
   const games = currentGames();
   const edTotal = weekTotal(state.picksEd), kirkTotal = weekTotal(state.picksKirk), finalTotal = weekTotal(state.final);
   container.innerHTML = `
@@ -903,6 +1122,79 @@ function renderResults(container){
     ` : `<div class="hint-text">No results yet — tap "Check results" once this week's games are finished.</div>`}
   `;
   document.getElementById("checkResultsBtn").onclick = checkResults;
+}
+
+function renderResultsSeason(container){
+  if(state.seasonLoading){
+    container.innerHTML = `<div class="loading">Loading season totals…</div>`;
+    return;
+  }
+  const data = state.seasonData || [];
+  if(!data.length){
+    container.innerHTML = `<div class="hint-text">No scored weeks yet — check results on at least one week first.</div>
+      <button class="btn ghost" id="refreshSeasonBtn" style="margin-top:12px;">Refresh</button>`;
+    document.getElementById("refreshSeasonBtn").onclick = async () => {
+      state.seasonLoading = true; render();
+      state.seasonData = await loadSeasonSummary();
+      state.seasonLoading = false; render();
+    };
+    return;
+  }
+
+  const { col, dir } = state.seasonSort;
+  const sorted = [...data].sort((a,b) => {
+    let av, bv;
+    if(col === "week") { av = WEEK_ORDER.indexOf(a.week); bv = WEEK_ORDER.indexOf(b.week); }
+    else { av = a[col].total; bv = b[col].total; }
+    return dir === "asc" ? av - bv : bv - av;
+  });
+
+  const grand = { ed:0, kirk:0, final:0 };
+  data.forEach(r => { grand.ed += r.ed.total; grand.kirk += r.kirk.total; grand.final += r.final.total; });
+
+  const arrow = (c) => col === c ? (dir === "asc" ? " ▲" : " ▼") : "";
+
+  container.innerHTML = `
+    <div class="status-bar">
+      <div class="status-pill ed"><span class="n">${grand.ed}</span>Ed — Season</div>
+      <div class="status-pill kirk"><span class="n">${grand.kirk}</span>Kirk — Season</div>
+      <div class="status-pill final"><span class="n">${grand.final}</span>Final — Season</div>
+    </div>
+    <div class="section-title">By week — tap a header to sort</div>
+    <table class="tally-table">
+      <tr>
+        <th data-sort="week" style="cursor:pointer;">Week${arrow("week")}</th>
+        <th data-sort="ed" style="cursor:pointer;">Ed${arrow("ed")}</th>
+        <th data-sort="kirk" style="cursor:pointer;">Kirk${arrow("kirk")}</th>
+        <th data-sort="final" style="cursor:pointer;">Final${arrow("final")}</th>
+      </tr>
+      ${sorted.map(r => `
+        <tr>
+          <td>${r.label}</td>
+          <td>${r.ed.total} <span style="color:var(--chalk-dim);font-size:10.5px;">(${r.ed.correct}/${r.ed.scored})</span></td>
+          <td>${r.kirk.total} <span style="color:var(--chalk-dim);font-size:10.5px;">(${r.kirk.correct}/${r.kirk.scored})</span></td>
+          <td>${r.final.total} <span style="color:var(--chalk-dim);font-size:10.5px;">(${r.final.correct}/${r.final.scored})</span></td>
+        </tr>
+      `).join("")}
+      <tr style="font-weight:800;background:var(--turf-light);">
+        <td>Season Total</td><td>${grand.ed}</td><td>${grand.kirk}</td><td>${grand.final}</td>
+      </tr>
+    </table>
+    <button class="btn ghost" id="refreshSeasonBtn" style="margin-top:14px;">Refresh season totals</button>
+  `;
+  container.querySelectorAll('[data-sort]').forEach(th => {
+    th.onclick = () => {
+      const c = th.dataset.sort;
+      if(state.seasonSort.col === c) state.seasonSort.dir = state.seasonSort.dir === "asc" ? "desc" : "asc";
+      else state.seasonSort = { col: c, dir: "asc" };
+      render();
+    };
+  });
+  document.getElementById("refreshSeasonBtn").onclick = async () => {
+    state.seasonLoading = true; render();
+    state.seasonData = await loadSeasonSummary();
+    state.seasonLoading = false; render();
+  };
 }
 
 (async function init(){ render(); })();
