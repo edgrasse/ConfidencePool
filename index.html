@@ -166,7 +166,7 @@
 <body>
 
 <div id="app"><div class="loading">Loading…</div></div>
-<div class="build-footer">Confidence Pool · Build 1.9.0 · Sept 24, 2026</div>
+<div class="build-footer">Confidence Pool · Build 1.10.0 · Sept 24, 2026</div>
 
 <script>
 /* ============================= SHARED INFRA CLIENT ============================= */
@@ -282,8 +282,10 @@ for(let n = 1; n <= 18; n++) WEEK_ORDER.push("week" + n);
 // weeks 4+ come from the shared Supabase-cached schedule, loaded on demand.
 function currentGames(){
   const w = WEEKS[state.week];
-  if(w.games) return w.games;
-  return state.scheduleCache[state.week] || [];
+  // A refreshed cache (from the "Refresh spreads" button) always wins, even for
+  // weeks 1-3's hardcoded matchups — that's how a spread refresh takes effect.
+  if(state.scheduleCache[state.week]) return state.scheduleCache[state.week];
+  return w.games || [];
 }
 function currentN(){ return currentGames().length; }
 
@@ -466,6 +468,35 @@ Use standard NFL team abbreviations (e.g. BUF, KC, SF, NYG). "favorite" is "away
   await saveScheduleToDB(weekId, games);
   state.scheduleCache[weekId] = games;
   return games;
+}
+
+// Used when a week ALREADY has games loaded (static weeks 1-3, or a
+// previously-loaded week 4+). Only updates favorite/spread on the existing
+// game list — never re-fetches or reorders matchups, so game IDs stay fixed
+// and already-saved picks/finals/results for this week can't get scrambled.
+async function refreshSpreadsOnly(weekId){
+  const existing = currentGames();
+  if(!existing.length) return fetchScheduleFromAI(weekId); // nothing to preserve yet
+  const wNum = weekId.replace("week", "");
+  const list = existing.map(g => `${g.id}: ${g.away} (${g.awayAb}) at ${g.home} (${g.homeAb})`).join("\n");
+  const prompt = `Search the web for the CURRENT DraftKings point spread for each of these specific NFL "Week ${wNum}" 2026 games. Respond with ONLY a JSON object, no other text, no markdown fences, mapping each game id below to an object with "favorite" ("away" or "home") and "spread" (number). Do not add, remove, or reorder games — only report the current line for the exact matchups listed. If a game has already been played, or no current line is available, omit that game's id entirely.
+
+Games:
+${list}`;
+  const result = await workerCall({ method: "CLAUDE_API", claudeMethod: "confResults", prompt });
+  if(result.error) throw new Error(result.error);
+  const clean = (result.text || "").replace(/```json|```/g, "").trim();
+  const parsed = JSON.parse(clean.slice(clean.indexOf("{"), clean.lastIndexOf("}") + 1));
+  const merged = existing.map(g => {
+    const upd = parsed[g.id];
+    if(upd && (upd.favorite === "away" || upd.favorite === "home") && typeof upd.spread === "number"){
+      return { ...g, favorite: upd.favorite, spread: upd.spread };
+    }
+    return g; // no update found for this game — leave it exactly as-is
+  });
+  await saveScheduleToDB(weekId, merged);
+  state.scheduleCache[weekId] = merged;
+  return merged;
 }
 
 async function getLock(){
@@ -815,7 +846,7 @@ function renderApp(app){
         <button class="btn primary" id="loadScheduleBtn" style="margin-top:10px;" ${state.scheduleLoading?"disabled":""}>${state.scheduleLoading ? "Loading…" : "Load " + WEEKS[state.week].label + " Schedule"}</button>
       </div>
     ` : `
-      ${!WEEKS[state.week].games ? `<button class="btn ghost" id="refreshScheduleBtn" style="margin-bottom:14px;" ${state.scheduleLoading?"disabled":""}>${state.scheduleLoading ? "Refreshing…" : "Refresh spreads for " + WEEKS[state.week].label}</button>` : ""}
+      <button class="btn ghost" id="refreshScheduleBtn" style="margin-bottom:14px;" ${state.scheduleLoading?"disabled":""}>${state.scheduleLoading ? "Refreshing…" : "Refresh game lines for " + WEEKS[state.week].label}</button>
       <div class="tabs">
         <button class="tab ${state.tab==='picks'?'active':''}" data-tab="picks">My Picks</button>
         <button class="tab ${state.tab==='compare'?'active':''}" data-tab="compare">Compare</button>
@@ -846,16 +877,18 @@ function renderApp(app){
 
 async function handleLoadSchedule(weekId){
   state.scheduleLoading = true; render();
+  const hadGamesAlready = currentGames().length > 0;
   try{
-    await fetchScheduleFromAI(weekId);
+    if(hadGamesAlready) await refreshSpreadsOnly(weekId);
+    else await fetchScheduleFromAI(weekId);
     resetPicksShape();
     const [ed, kirk, fin, res] = await Promise.all([
       getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
     ]);
     state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
-    showToast("Schedule loaded.");
+    showToast(hadGamesAlready ? "Game lines refreshed." : "Schedule loaded.");
   }catch(e){
-    showToast("Couldn't load the schedule — try again in a moment.");
+    showToast(hadGamesAlready ? "Couldn't refresh lines — try again in a moment." : "Couldn't load the schedule — try again in a moment.");
     console.error(e);
   }
   state.scheduleLoading = false;
