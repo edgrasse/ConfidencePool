@@ -166,7 +166,7 @@
 <body>
 
 <div id="app"><div class="loading">Loading…</div></div>
-<div class="build-footer">Confidence Pool · Build 1.10.1 · Sept 24, 2026</div>
+<div class="build-footer">Confidence Pool · Build 1.11.0 · Sept 24, 2026</div>
 
 <script>
 /* ============================= SHARED INFRA CLIENT ============================= */
@@ -474,9 +474,30 @@ Use standard NFL team abbreviations (e.g. BUF, KC, SF, NYG). "favorite" is "away
 // previously-loaded week 4+). Only updates favorite/spread on the existing
 // game list — never re-fetches or reorders matchups, so game IDs stay fixed
 // and already-saved picks/finals/results for this week can't get scrambled.
+// Targets exactly one game — a single focused search is far more reliable
+// than asking for all 16 games' lines at once.
+async function refreshOneGameSpread(weekId, gameId){
+  const existing = currentGames();
+  const g = existing.find(x => x.id === gameId);
+  if(!g) return false;
+  const wNum = weekId.replace("week", "");
+  const prompt = `Search the web for the CURRENT, most up-to-date DraftKings point spread for this single NFL "Week ${wNum}" 2026 game: ${g.away} (${g.awayAb}) at ${g.home} (${g.homeAb}). Lines can move significantly day to day, so prioritize the most recently published source you can find over older cached articles. Respond with ONLY a JSON object, no other text, no markdown fences: {"favorite":"away","spread":3.5}. "favorite" is "away" or "home". If the game has already been played, or no current DraftKings line is available, respond with {"favorite":null,"spread":null}.`;
+  const result = await workerCall({ method: "CLAUDE_API", claudeMethod: "confResults", prompt });
+  if(result.error) throw new Error(result.error);
+  const clean = (result.text || "").replace(/```json|```/g, "").trim();
+  const parsed = JSON.parse(clean.slice(clean.indexOf("{"), clean.lastIndexOf("}") + 1));
+  if(parsed && (parsed.favorite === "away" || parsed.favorite === "home") && typeof parsed.spread === "number"){
+    const merged = existing.map(x => x.id === gameId ? { ...x, favorite: parsed.favorite, spread: parsed.spread } : x);
+    await saveScheduleToDB(weekId, merged);
+    state.scheduleCache[weekId] = merged;
+    return true;
+  }
+  return false;
+}
+
 async function refreshSpreadsOnly(weekId){
   const existing = currentGames();
-  if(!existing.length) return fetchScheduleFromAI(weekId); // nothing to preserve yet
+  if(!existing.length) return { games: await fetchScheduleFromAI(weekId), changedIds: [], notFoundIds: [] };
   const wNum = weekId.replace("week", "");
   const list = existing.map(g => `${g.id}: ${g.away} (${g.awayAb}) at ${g.home} (${g.homeAb})`).join("\n");
   const prompt = `Search the web for the CURRENT, most up-to-date DraftKings point spread for each of these specific NFL "Week ${wNum}" 2026 games — some lines move significantly in the days before kickoff, so prioritize sources with the most recent timestamp over older cached articles. Respond with ONLY a JSON object, no other text, no markdown fences, mapping each game id below to an object with "favorite" ("away" or "home") and "spread" (number). Do not add, remove, or reorder games — only report the current line for the exact matchups listed. If a game has already been played, or no current line is available, omit that game's id entirely.
@@ -487,16 +508,20 @@ ${list}`;
   if(result.error) throw new Error(result.error);
   const clean = (result.text || "").replace(/```json|```/g, "").trim();
   const parsed = JSON.parse(clean.slice(clean.indexOf("{"), clean.lastIndexOf("}") + 1));
+  const changedIds = [], notFoundIds = [];
   const merged = existing.map(g => {
     const upd = parsed[g.id];
     if(upd && (upd.favorite === "away" || upd.favorite === "home") && typeof upd.spread === "number"){
+      const changed = upd.favorite !== g.favorite || upd.spread !== g.spread;
+      if(changed) changedIds.push(g.id);
       return { ...g, favorite: upd.favorite, spread: upd.spread };
     }
+    notFoundIds.push(g.id);
     return g; // no update found for this game — leave it exactly as-is
   });
   await saveScheduleToDB(weekId, merged);
   state.scheduleCache[weekId] = merged;
-  return merged;
+  return { games: merged, changedIds, notFoundIds };
 }
 
 async function getLock(){
@@ -879,14 +904,25 @@ async function handleLoadSchedule(weekId){
   state.scheduleLoading = true; render();
   const hadGamesAlready = currentGames().length > 0;
   try{
-    if(hadGamesAlready) await refreshSpreadsOnly(weekId);
-    else await fetchScheduleFromAI(weekId);
-    resetPicksShape();
-    const [ed, kirk, fin, res] = await Promise.all([
-      getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
-    ]);
-    state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
-    showToast(hadGamesAlready ? "Game lines refreshed." : "Schedule loaded.");
+    if(hadGamesAlready){
+      const { changedIds, notFoundIds } = await refreshSpreadsOnly(weekId);
+      resetPicksShape();
+      const [ed, kirk, fin, res] = await Promise.all([
+        getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
+      ]);
+      state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
+      if(notFoundIds.length === 0) showToast(`Updated all ${changedIds.length || 0} changed line(s).`);
+      else if(changedIds.length === 0) showToast(`No lines updated — search couldn't confirm any of the ${notFoundIds.length} game(s). Try again shortly.`);
+      else showToast(`Updated ${changedIds.length}, but couldn't confirm ${notFoundIds.length} game(s) — those are unchanged. Try refreshing again.`);
+    } else {
+      await fetchScheduleFromAI(weekId);
+      resetPicksShape();
+      const [ed, kirk, fin, res] = await Promise.all([
+        getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
+      ]);
+      state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
+      showToast("Schedule loaded.");
+    }
   }catch(e){
     showToast(hadGamesAlready ? "Couldn't refresh lines — try again in a moment." : "Couldn't load the schedule — try again in a moment.");
     console.error(e);
@@ -940,7 +976,7 @@ function renderMyPicks(container){
     card.className = "game-card" + (state.identity === "ed" && tierObj ? " " + tierObj.cls : "");
     card.innerHTML = `
       <div class="game-header"><div class="matchup">${g.awayAb}<span class="at">@</span>${g.homeAb}</div>
-        <div class="game-meta">${g.when}<br><span class="spread">${favTeam} -${g.spread}</span></div></div>
+        <div class="game-meta">${g.when}<br><span class="spread">${favTeam} -${g.spread}</span> <button type="button" class="hide-link" style="display:inline;padding:0;margin:0;" data-refresh-line="${g.id}" title="Refresh just this game's line">↻</button></div></div>
       <div class="picker-row">
         <div class="team-toggle">
           <button type="button" class="team-btn ${p.team==='away'?'active '+meColorClass:''}" data-team="away" ${state.locked?"disabled":""}>${g.awayAb}</button>
@@ -963,6 +999,19 @@ function renderMyPicks(container){
           btn.onclick = () => setMyTier(g.id, btn.dataset.tier);
         });
       }
+    }
+    const refreshLineBtn = card.querySelector('[data-refresh-line]');
+    if(refreshLineBtn){
+      refreshLineBtn.onclick = async () => {
+        refreshLineBtn.textContent = "…";
+        try{
+          const ok = await refreshOneGameSpread(state.week, g.id);
+          showToast(ok ? "Line updated." : "Couldn't confirm a current line for this game — try again shortly.");
+        }catch(e){
+          showToast("Refresh failed — try again in a moment.");
+        }
+        render();
+      };
     }
     myGames.appendChild(card);
   });
