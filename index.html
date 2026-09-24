@@ -166,7 +166,7 @@
 <body>
 
 <div id="app"><div class="loading">Loading…</div></div>
-<div class="build-footer">Confidence Pool · Build 1.10.0 · Sept 24, 2026</div>
+<div class="build-footer">Confidence Pool · Build 1.10.1 · Sept 24, 2026</div>
 
 <script>
 /* ============================= SHARED INFRA CLIENT ============================= */
@@ -456,7 +456,7 @@ async function ensureScheduleLoaded(weekId){
 }
 async function fetchScheduleFromAI(weekId){
   const wNum = weekId.replace("week", "");
-  const prompt = `Search the web for the NFL "Week ${wNum}" 2026 regular season schedule (all games for that week — should be around 13-16 games depending on byes), and the current DraftKings point spread for each game. Respond with ONLY a JSON array, no other text, no markdown fences, one object per game, in actual kickoff order (earliest game first):
+  const prompt = `Search the web for the NFL "Week ${wNum}" 2026 regular season schedule (all games for that week — should be around 13-16 games depending on byes), and the CURRENT, most up-to-date DraftKings point spread for each game — some lines move significantly day to day, so prioritize the most recently published source over older cached articles. Respond with ONLY a JSON array, no other text, no markdown fences, one object per game, in actual kickoff order (earliest game first):
 [{"away":"Team Name","home":"Team Name","awayAb":"2-3 LETTER ABBREVIATION","homeAb":"2-3 LETTER ABBREVIATION","when":"Day M/D · H:MMp ET","favorite":"away","spread":3.5}]
 Use standard NFL team abbreviations (e.g. BUF, KC, SF, NYG). "favorite" is "away" or "home" — whichever side DraftKings favors. If a DraftKings spread isn't posted yet for a game, set "favorite" and "spread" to null. Return ONLY the JSON array, nothing else.`;
   const result = await workerCall({ method: "CLAUDE_API", claudeMethod: "confResults", prompt });
@@ -479,7 +479,7 @@ async function refreshSpreadsOnly(weekId){
   if(!existing.length) return fetchScheduleFromAI(weekId); // nothing to preserve yet
   const wNum = weekId.replace("week", "");
   const list = existing.map(g => `${g.id}: ${g.away} (${g.awayAb}) at ${g.home} (${g.homeAb})`).join("\n");
-  const prompt = `Search the web for the CURRENT DraftKings point spread for each of these specific NFL "Week ${wNum}" 2026 games. Respond with ONLY a JSON object, no other text, no markdown fences, mapping each game id below to an object with "favorite" ("away" or "home") and "spread" (number). Do not add, remove, or reorder games — only report the current line for the exact matchups listed. If a game has already been played, or no current line is available, omit that game's id entirely.
+  const prompt = `Search the web for the CURRENT, most up-to-date DraftKings point spread for each of these specific NFL "Week ${wNum}" 2026 games — some lines move significantly in the days before kickoff, so prioritize sources with the most recent timestamp over older cached articles. Respond with ONLY a JSON object, no other text, no markdown fences, mapping each game id below to an object with "favorite" ("away" or "home") and "spread" (number). Do not add, remove, or reorder games — only report the current line for the exact matchups listed. If a game has already been played, or no current line is available, omit that game's id entirely.
 
 Games:
 ${list}`;
