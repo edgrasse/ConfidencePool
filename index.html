@@ -166,7 +166,7 @@
 <body>
 
 <div id="app"><div class="loading">Loading…</div></div>
-<div class="build-footer">Confidence Pool · Build 1.11.0 · Sept 24, 2026</div>
+<div class="build-footer">Confidence Pool · Build 1.12.0 · Sept 25, 2026</div>
 
 <script>
 /* ============================= SHARED INFRA CLIENT ============================= */
@@ -558,6 +558,29 @@ async function switchWeek(weekId){
 }
 
 /* ============================= AUTH FLOW ============================= */
+const SESSION_KEY = "confSession";
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // stay logged in on this device for 24h, then re-prompt for safety
+
+function saveSession(identity){
+  try{ localStorage.setItem(SESSION_KEY, JSON.stringify({ identity, ts: Date.now() })); }
+  catch(e){ /* storage unavailable — just means sessions won't persist, not a crash */ }
+}
+function loadSession(){
+  try{
+    const raw = localStorage.getItem(SESSION_KEY);
+    if(!raw) return null;
+    const data = JSON.parse(raw);
+    if(!data || !data.identity || (Date.now() - data.ts) > SESSION_TTL_MS){
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return data;
+  }catch(e){ return null; }
+}
+function clearSession(){
+  try{ localStorage.removeItem(SESSION_KEY); }catch(e){}
+}
+
 async function chooseIdentity(who){
   state.identity = who; state.pinError = ""; state.pinDraft = "";
   const auth = await getAuth(who);
@@ -572,6 +595,7 @@ async function submitPinCreate(pin){
   const hash = await sha256(state.identity + ":" + pin);
   await setAuth(state.identity, hash);
   state.unlocked = true; state.screen = "app";
+  saveSession(state.identity);
   await ensureScheduleLoaded(state.week);
   await loadAll(); render();
 }
@@ -580,11 +604,15 @@ async function submitPinEnter(pin){
   const hash = await sha256(state.identity + ":" + pin);
   if(auth && auth.pin_hash === hash){
     state.unlocked = true; state.screen = "app"; state.pinError = "";
+    saveSession(state.identity);
     await ensureScheduleLoaded(state.week);
     await loadAll(); render();
   } else { state.pinError = "Wrong PIN. Try again."; render(); }
 }
-function logout(){ state.identity = null; state.unlocked = false; state.screen = "identity"; state.tierFilter = null; render(); }
+function logout(){
+  clearSession();
+  state.identity = null; state.unlocked = false; state.screen = "identity"; state.tierFilter = null; render();
+}
 
 /* ============================= PICK LOGIC ============================= */
 function myPicksKey(){ return state.identity === "ed" ? "picksEd" : "picksKirk"; }
@@ -1062,7 +1090,7 @@ function renderCompare(container){
       body = `
         <div class="compare-cols">
           <div class="ccol you">
-            <div class="cc-label">You</div>
+            <div class="cc-label">Ed</div>
             <div class="cc-team">${edTeamAb}</div>
             <div class="cc-pts">${ed.pts}</div>
           </div>
@@ -1279,7 +1307,17 @@ function renderResultsSeason(container){
   };
 }
 
-(async function init(){ render(); })();
+(async function init(){
+  const session = loadSession();
+  if(session){
+    state.identity = session.identity;
+    state.unlocked = true;
+    state.screen = "app";
+    await ensureScheduleLoaded(state.week);
+    await loadAll();
+  }
+  render();
+})();
 </script>
 </body>
 </html>
