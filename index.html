@@ -133,6 +133,29 @@
   .cc-final-teams .team-btn{ font-size: 11px; padding: 6px 2px; }
   .ccol.final select.pts{ width: 100%; }
   .disagree-note{ text-align:center; font-size: 10.5px; color: var(--bad); padding: 0 12px 8px; font-weight: 600; }
+
+  /* Sign-in screens stay narrow and centered */
+  #app.narrow{ max-width: 480px; margin: 0 auto; }
+
+  /* Desktop: games flow in a multi-column grid instead of one long column */
+  @media (min-width: 700px){
+    body{ max-width: 1000px; }
+    #myGames, #compareGames, #finalGames{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+    #myGames .game-card, #compareGames .game-card, #finalGames .game-card{ margin-bottom: 0; }
+  }
+  @media (min-width: 1000px){
+    body{ max-width: 1400px; padding-left: 24px; padding-right: 24px; }
+    #myGames, #compareGames, #finalGames{ grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+  @media (min-width: 1280px){
+    body{ max-width: 1800px; }
+    #myGames, #compareGames, #finalGames{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  }
+  @media (min-width: 700px){
+    .topbar, .field-label, #weekSelect, #refreshScheduleBtn, #loadScheduleBtn, .tabs, .status-bar,
+    .tier-filter-row, .backup-panel, #compareAllBtn, #lockArea, .hint-text{ max-width: 560px; }
+    .tally-table{ max-width: 900px; }
+  }
   .build-footer{ text-align:center; font-size: 10px; color: var(--chalk-dim); opacity: 0.55; margin: 28px 0 6px; letter-spacing: 0.02em; }
   .reveal-btn{
     margin: 10px 12px 12px; width: calc(100% - 24px);
@@ -158,7 +181,11 @@
   .backup-panel.warn{ border-color: var(--bad); }
   .backup-title{ font-size: 13px; font-weight: 700; margin-bottom: 4px; }
   .backup-desc{ font-size: 12px; color: var(--chalk-dim); line-height: 1.5; }
-  .toast{ font-size: 12px; margin-top: 8px; color: var(--gold); min-height: 14px; }
+  .toast{ position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 100;
+    max-width: min(92vw, 560px); background: var(--turf-light); border: 1px solid var(--gold-dim);
+    color: var(--chalk); padding: 11px 16px; border-radius: 10px; font-size: 13px; line-height: 1.4;
+    text-align: center; box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+  .toast:empty{ display: none; }
   .section-title{ font-size: 13px; font-weight: 700; color: var(--chalk-dim); margin: 6px 0 10px; text-transform: uppercase; letter-spacing: 0.03em; }
   .loading{ text-align:center; padding: 40px 0; color: var(--chalk-dim); }
 </style>
@@ -166,7 +193,7 @@
 <body>
 
 <div id="app"><div class="loading">Loading…</div></div>
-<div class="build-footer">Confidence Pool · Build 1.12.0 · Sept 25, 2026</div>
+<div class="build-footer">Confidence Pool · Build 1.13.0 · Oct 4, 2026</div>
 
 <script>
 /* ============================= SHARED INFRA CLIENT ============================= */
@@ -305,10 +332,21 @@ const PRESET_WEEK1 = {
   final:{ g1:["home",8], g2:["home",11], g3:["away",7], g4:["home",9], g5:["away",10], g6:["away",2], g7:["home",14], g8:["home",3], g9:["home",12], g10:["home",15], g11:["home",16], g12:["away",4], g13:["home",5], g14:["home",13], g15:["away",6], g16:["away",1] },
 };
 
+// The pick week rolls over on the Tuesday after Monday Night Football (PoolHost does
+// the same). Week N rolls over on Tuesday Sept 15 + 7*(N-1), at local midnight.
+function defaultWeekId(){
+  const now = new Date();
+  for(let n = 1; n <= 18; n++){
+    const rollover = new Date(2026, 8, 15 + 7 * (n - 1), 0, 0, 0);
+    if(now < rollover) return "week" + n;
+  }
+  return "week18";
+}
+
 /* ============================= STATE ============================= */
 let state = {
   identity: null, unlocked: false, screen: "identity", tab: "picks",
-  week: "week3", // default to the most recent open week
+  week: defaultWeekId(), // current NFL week (flips on Tuesday)
   picksEd: {}, picksKirk: {}, final: {}, results: null,
   connectionOK: true, pinError: "", pinDraft: "", awaitingConfirm: false,
   tierFilter: null, // Ed-only: filter My Picks by tier ('low'|'lowmed'|'med'|'medhigh'|'high'|null=all)
@@ -320,6 +358,8 @@ let state = {
   seasonSort: { col: "week", dir: "asc" },
   scheduleCache: {}, // weekId -> games array, for weeks loaded from ConfSchedule (weeks 4+)
   scheduleLoading: false,
+  oddsCache: null, // { ts, events } — DraftKings lines cached ~60s so repeated taps don't burn API credits
+  toastMsg: "",
 };
 function resetPicksShape(){
   state.picksEd = {}; state.picksKirk = {}; state.final = {};
@@ -454,6 +494,136 @@ async function ensureScheduleLoaded(weekId){
   const cached = await getScheduleFromDB(weekId);
   if(cached && cached.length) state.scheduleCache[weekId] = cached;
 }
+/* ---------- Teams: PoolHost city label -> nickname / standard abbreviation / PoolHost sort code ---------- */
+const PH_TEAMS = {
+  "Arizona":{nick:"Cardinals",ab:"ARI",ph:"AZ"},     "Atlanta":{nick:"Falcons",ab:"ATL",ph:"ATL"},
+  "Baltimore":{nick:"Ravens",ab:"BAL",ph:"BAL"},     "Buffalo":{nick:"Bills",ab:"BUF",ph:"BUF"},
+  "Carolina":{nick:"Panthers",ab:"CAR",ph:"CAR"},    "Chicago":{nick:"Bears",ab:"CHI",ph:"CHI"},
+  "Cincinnati":{nick:"Bengals",ab:"CIN",ph:"CIN"},   "Cleveland":{nick:"Browns",ab:"CLE",ph:"CLE"},
+  "Dallas":{nick:"Cowboys",ab:"DAL",ph:"DAL"},       "Denver":{nick:"Broncos",ab:"DEN",ph:"DEN"},
+  "Detroit":{nick:"Lions",ab:"DET",ph:"DET"},        "Green Bay":{nick:"Packers",ab:"GB",ph:"GB"},
+  "Houston":{nick:"Texans",ab:"HOU",ph:"HOU"},       "Indianapolis":{nick:"Colts",ab:"IND",ph:"IND"},
+  "Jacksonville":{nick:"Jaguars",ab:"JAX",ph:"JAC"}, "Kansas City":{nick:"Chiefs",ab:"KC",ph:"KC"},
+  "Las Vegas":{nick:"Raiders",ab:"LV",ph:"LV"},       "Los Angeles (A)":{nick:"Chargers",ab:"LAC",ph:"LAC"},
+  "Los Angeles (N)":{nick:"Rams",ab:"LAR",ph:"LAR"},  "Miami":{nick:"Dolphins",ab:"MIA",ph:"MIA"},
+  "Minnesota":{nick:"Vikings",ab:"MIN",ph:"MIN"},     "New England":{nick:"Patriots",ab:"NE",ph:"NE"},
+  "New Orleans":{nick:"Saints",ab:"NO",ph:"NO"},      "New York (A)":{nick:"Jets",ab:"NYJ",ph:"NYJ"},
+  "New York (N)":{nick:"Giants",ab:"NYG",ph:"NYG"},   "Philadelphia":{nick:"Eagles",ab:"PHI",ph:"PHI"},
+  "Pittsburgh":{nick:"Steelers",ab:"PIT",ph:"PIT"},   "San Francisco":{nick:"49ers",ab:"SF",ph:"SF"},
+  "Seattle":{nick:"Seahawks",ab:"SEA",ph:"SEA"},     "Tampa Bay":{nick:"Buccaneers",ab:"TB",ph:"TB"},
+  "Tennessee":{nick:"Titans",ab:"TEN",ph:"TEN"},     "Washington":{nick:"Commanders",ab:"WAS",ph:"WAS"},
+};
+
+/* ---------- Date helpers (all kickoff times are Eastern) ---------- */
+const MON_NUM = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12};
+const DOW_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+function seasonYearFor(mon){ return mon <= 2 ? 2027 : 2026; }
+function nflWeekForDate(mon, day){ // Week 1 starts Wed Sept 9, 2026
+  const ms = Date.UTC(seasonYearFor(mon), mon - 1, day) - Date.UTC(2026, 8, 9);
+  return Math.floor(ms / 86400000 / 7) + 1;
+}
+function etOffsetHours(mon){ return (mon >= 11 || mon <= 3) ? 5 : 4; } // DST ends Nov 1, 2026
+function whenToMs(when){ // "Sun 9/27 · 1:00p ET" -> UTC ms (null if unparseable)
+  const m = /(\d{1,2})\/(\d{1,2})\s*·\s*(\d{1,2}):(\d{2})\s*([ap])/i.exec(when || "");
+  if(!m) return null;
+  const mon = +m[1], day = +m[2]; let hh = +m[3]; const mm = +m[4]; const pm = m[5].toLowerCase() === "p";
+  if(pm && hh < 12) hh += 12;
+  if(!pm && hh === 12) hh = 0;
+  return Date.UTC(seasonYearFor(mon), mon - 1, day, hh + etOffsetHours(mon), mm);
+}
+function formatWhen(mon, day, hh12, mm, ap){
+  const dow = DOW_NAMES[new Date(Date.UTC(seasonYearFor(mon), mon - 1, day)).getUTCDay()];
+  return `${dow} ${mon}/${day} · ${parseInt(hh12, 10)}:${mm}${ap.toUpperCase() === "AM" ? "a" : "p"} ET`;
+}
+
+/* ---------- Spread display ---------- */
+function spreadLabel(g){
+  if(g.spread == null || !g.favorite) return "Line TBD";
+  if(Number(g.spread) === 0) return "PK";
+  const ab = g.favorite === "home" ? g.homeAb : g.awayAb;
+  return `${ab} -${g.spread}`;
+}
+
+/* ---------- PoolHost schedule (week 5+) ---------- */
+function parsePoolhostHTML(html){
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const dateRe = /(?:(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\.?\s+)?(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)\.?\s+(\d{1,2})\s*-\s*(\d{1,2}):(\d{2})\s*(AM|PM)/i;
+  const out = []; let cur = null, node;
+  while((node = walker.nextNode())){
+    const tag = node.parentNode && node.parentNode.nodeName;
+    if(tag === "SCRIPT" || tag === "STYLE" || tag === "NOSCRIPT") continue;
+    const t = node.nodeValue.replace(/\s+/g, " ").trim();
+    if(!t) continue;
+    const dm = dateRe.exec(t);
+    if(dm){
+      cur = { mon: MON_NUM[dm[1].toLowerCase()], day: +dm[2], hh: dm[3], mm: dm[4], ap: dm[5], teams: [] };
+      out.push(cur);
+      continue;
+    }
+    // First team listed = visitor, second = home (matches PoolHost's layout)
+    if(cur && cur.teams.length < 2 && Object.prototype.hasOwnProperty.call(PH_TEAMS, t) && cur.teams[cur.teams.length - 1] !== t){
+      cur.teams.push(t);
+    }
+  }
+  return out.filter(g => g.teams.length === 2 && g.mon);
+}
+function poolhostWeekOf(parsed){ // which NFL week are these games in? (majority vote on kickoff dates)
+  const counts = {};
+  parsed.forEach(g => { const w = nflWeekForDate(g.mon, g.day); counts[w] = (counts[w] || 0) + 1; });
+  let best = null, bc = 0;
+  Object.keys(counts).forEach(w => { if(counts[w] > bc){ bc = counts[w]; best = +w; } });
+  return best;
+}
+function poolhostToGames(parsed){ // keeps PoolHost's own order
+  return parsed.map((g, i) => {
+    const a = PH_TEAMS[g.teams[0]], h = PH_TEAMS[g.teams[1]];
+    return { id: "g" + (i + 1), away: a.nick, home: h.nick, awayAb: a.ab, homeAb: h.ab,
+             when: formatWhen(g.mon, g.day, g.hh, g.mm, g.ap), favorite: null, spread: null };
+  });
+}
+function decodeB64Utf8(b64){
+  const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder("utf-8").decode(bytes);
+}
+// Pulls PoolHost's public NFL schedule page through the Worker (browsers can't fetch it directly).
+// PoolHost's default view is the current week; a few URL variants are tried for other weeks, and
+// each result is verified by the kickoff dates so we never save the wrong week.
+async function fetchPoolhostWeek(weekNum){
+  const base = "https://www.poolhost.com/nfl/schedule";
+  const candidates = [base, `${base}?week=${weekNum}`, `${base}?wk=${weekNum}`, `${base}/${weekNum}`];
+  let seenWeek = null;
+  for(const url of candidates){
+    try{
+      const res = await workerCall({ method: "FETCH_URL", url });
+      if(!res || !res.base64) continue;
+      const parsed = parsePoolhostHTML(decodeB64Utf8(res.base64));
+      if(!parsed.length) continue;
+      const wk = poolhostWeekOf(parsed);
+      if(seenWeek === null) seenWeek = wk;
+      if(wk === weekNum) return { games: poolhostToGames(parsed), seenWeek: wk };
+    }catch(e){ console.warn("PoolHost attempt failed:", url, e); }
+  }
+  return { games: null, seenWeek };
+}
+// Fallback ordering that mimics PoolHost: kickoff time, then home-team code alphabetically.
+function poolhostSortGames(games){
+  const phCode = (ab) => { const t = Object.values(PH_TEAMS).find(x => x.ab === ab); return t ? t.ph : String(ab); };
+  return [...games].sort((a, b) => {
+    const ta = whenToMs(a.when), tb = whenToMs(b.when);
+    if(ta !== tb) return (ta == null ? 0 : ta) - (tb == null ? 0 : tb);
+    const ha = phCode(a.homeAb), hb = phCode(b.homeAb);
+    return ha < hb ? -1 : ha > hb ? 1 : 0;
+  }).map((g, i) => ({ ...g, id: "g" + (i + 1) }));
+}
+
+async function commitSchedule(weekId, games){
+  await saveScheduleToDB(weekId, games);
+  state.scheduleCache[weekId] = games;
+  return games;
+}
+
 async function fetchScheduleFromAI(weekId){
   const wNum = weekId.replace("week", "");
   const prompt = `Search the web for the NFL "Week ${wNum}" 2026 regular season schedule (all games for that week — should be around 13-16 games depending on byes), and the CURRENT, most up-to-date DraftKings point spread for each game — some lines move significantly day to day, so prioritize the most recently published source over older cached articles. Respond with ONLY a JSON array, no other text, no markdown fences, one object per game, in actual kickoff order (earliest game first):
@@ -464,19 +634,119 @@ Use standard NFL team abbreviations (e.g. BUF, KC, SF, NYG). "favorite" is "away
   const clean = (result.text || "").replace(/```json|```/g, "").trim();
   const arr = JSON.parse(clean.slice(clean.indexOf("["), clean.lastIndexOf("]") + 1));
   if(!Array.isArray(arr) || arr.length === 0) throw new Error("No games returned");
-  const games = arr.map((g, i) => ({ id: "g" + (i + 1), ...g }));
-  await saveScheduleToDB(weekId, games);
-  state.scheduleCache[weekId] = games;
-  return games;
+  const weekNum = parseInt(wNum, 10);
+  const games = weekNum >= 5 ? poolhostSortGames(arr) : arr.map((g, i) => ({ id: "g" + (i + 1), ...g }));
+  return commitSchedule(weekId, games);
 }
 
-// Used when a week ALREADY has games loaded (static weeks 1-3, or a
-// previously-loaded week 4+). Only updates favorite/spread on the existing
-// game list — never re-fetches or reorders matchups, so game IDs stay fixed
-// and already-saved picks/finals/results for this week can't get scrambled.
-// Targets exactly one game — a single focused search is far more reliable
-// than asking for all 16 games' lines at once.
+// First-time load of a week's games. Week 5+ comes from PoolHost (same order as the pool site);
+// weeks 1-4 and any PoolHost failure use the web-search path.
+async function loadWeekSchedule(weekId){
+  const n = parseInt(weekId.replace("week", ""), 10);
+  let source = "ai", seenWeek = null;
+  if(n >= 5){
+    const ph = await fetchPoolhostWeek(n);
+    seenWeek = ph.seenWeek;
+    if(ph.games && ph.games.length){ await commitSchedule(weekId, ph.games); source = "poolhost"; }
+  }
+  if(source !== "poolhost") await fetchScheduleFromAI(weekId);
+  return { source, seenWeek, count: (state.scheduleCache[weekId] || []).length };
+}
+
+/* ---------- DraftKings lines (The Odds API, via the Worker) ---------- */
+async function workerCallSoft(payload){ // like workerCall but returns the JSON body even on HTTP errors
+  const r = await fetch(WORKER_URL, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ appId: APP_ID, ...payload })
+  });
+  let data = null; try{ data = await r.json(); }catch(e){}
+  return { ok: r.ok, status: r.status, data };
+}
+async function fetchDraftKingsOdds(force){
+  if(!force && state.oddsCache && Date.now() - state.oddsCache.ts < 60000) return state.oddsCache.events;
+  const r = await workerCallSoft({ method: "CONF_ODDS" });
+  const d = r.data || {};
+  if(!r.ok){ const e = new Error(d.error || ("Odds service error " + r.status)); e.code = d.code || "API"; throw e; }
+  state.oddsCache = { ts: Date.now(), events: d.games || [] };
+  return state.oddsCache.events;
+}
+const nickOf = (name) => String(name || "").trim().split(/\s+/).pop().toLowerCase();
+// Matches one of our games to a DraftKings event by team nicknames (order-independent, so
+// neutral-site games with swapped home/away still match) and kickoff date.
+function applyOddsToGame(g, events){
+  const ko = whenToMs(g.when);
+  if(ko !== null && ko <= Date.now()) return { status: "started", game: g }; // never overwrite with in-game lines
+  const a = nickOf(g.away), h = nickOf(g.home);
+  const ev = events.find(e => {
+    const ea = nickOf(e.away), eh = nickOf(e.home);
+    if(!((ea === a && eh === h) || (ea === h && eh === a))) return false;
+    return ko === null || Math.abs(new Date(e.commence).getTime() - ko) < 36 * 3600 * 1000;
+  });
+  if(!ev || !ev.outcomes || ev.outcomes.length < 2) return { status: "missing", game: g };
+  const oa = ev.outcomes.find(o => nickOf(o.name) === a);
+  const oh = ev.outcomes.find(o => nickOf(o.name) === h);
+  if(!oa || !oh || typeof oa.point !== "number" || typeof oh.point !== "number") return { status: "missing", game: g };
+  let favorite, spread;
+  if(oa.point < oh.point){ favorite = "away"; spread = Math.abs(oa.point); }
+  else if(oh.point < oa.point){ favorite = "home"; spread = Math.abs(oh.point); }
+  else { favorite = "home"; spread = 0; }
+  const same = g.favorite === favorite && Number(g.spread) === spread;
+  return { status: same ? "same" : "updated", game: { ...g, favorite, spread } };
+}
+async function applyOddsToWeek(weekId, force){
+  const existing = state.scheduleCache[weekId] || WEEKS[weekId].games || [];
+  const counts = { updated: 0, same: 0, started: 0, missing: 0 };
+  if(!existing.length) return { source: "draftkings", counts };
+  const events = await fetchDraftKingsOdds(force);
+  const merged = existing.map(g => { const r = applyOddsToGame(g, events); counts[r.status]++; return r.game; });
+  if(counts.updated > 0){
+    await saveScheduleToDB(weekId, merged);
+    state.scheduleCache[weekId] = merged;
+  }
+  return { source: "draftkings", counts };
+}
+function oddsSummaryToast(res){
+  const c = res.counts;
+  if(res.source === "ai") return `Web-search estimate (add the Odds API key for exact DraftKings lines): ${c.updated} changed, ${c.missing} couldn't be confirmed.`;
+  const parts = [`${c.updated} changed`, `${c.same} unchanged`];
+  if(c.started) parts.push(`${c.started} already kicked off (locked)`);
+  if(c.missing) parts.push(`${c.missing} not posted by DraftKings yet`);
+  return "DraftKings lines: " + parts.join(", ") + ".";
+}
+
+// Updates ONLY favorite/spread on the games already on the board — never reorders or re-ids
+// games, so picks, finals and results already saved for the week can't get scrambled.
+async function refreshSpreadsOnly(weekId){
+  try{
+    return await applyOddsToWeek(weekId, true);
+  }catch(e){
+    if(e.code !== "NO_KEY") throw e;
+    const r = await refreshSpreadsViaAI(weekId); // no Odds API key yet — old web-search estimate
+    return { source: "ai", counts: { updated: r.changedIds.length, same: 0, started: 0, missing: r.notFoundIds.length } };
+  }
+}
 async function refreshOneGameSpread(weekId, gameId){
+  const existing = state.scheduleCache[weekId] || WEEKS[weekId].games || [];
+  const g = existing.find(x => x.id === gameId);
+  if(!g) return { ok: false, reason: "nogame" };
+  try{
+    const events = await fetchDraftKingsOdds(false);
+    const r = applyOddsToGame(g, events);
+    if(r.status === "updated"){
+      const merged = existing.map(x => x.id === gameId ? r.game : x);
+      await saveScheduleToDB(weekId, merged);
+      state.scheduleCache[weekId] = merged;
+    }
+    return { ok: r.status === "updated" || r.status === "same", reason: r.status, game: r.game };
+  }catch(e){
+    if(e.code !== "NO_KEY") throw e;
+    const ok = await refreshOneGameSpreadViaAI(weekId, gameId);
+    return { ok, reason: ok ? "updated-ai" : "missing", game: g };
+  }
+}
+
+/* ---------- Old web-search estimators (only used until the Odds API key is added) ---------- */
+async function refreshOneGameSpreadViaAI(weekId, gameId){
   const existing = currentGames();
   const g = existing.find(x => x.id === gameId);
   if(!g) return false;
@@ -494,10 +764,8 @@ async function refreshOneGameSpread(weekId, gameId){
   }
   return false;
 }
-
-async function refreshSpreadsOnly(weekId){
+async function refreshSpreadsViaAI(weekId){
   const existing = currentGames();
-  if(!existing.length) return { games: await fetchScheduleFromAI(weekId), changedIds: [], notFoundIds: [] };
   const wNum = weekId.replace("week", "");
   const list = existing.map(g => `${g.id}: ${g.away} (${g.awayAb}) at ${g.home} (${g.homeAb})`).join("\n");
   const prompt = `Search the web for the CURRENT, most up-to-date DraftKings point spread for each of these specific NFL "Week ${wNum}" 2026 games — some lines move significantly in the days before kickoff, so prioritize sources with the most recent timestamp over older cached articles. Respond with ONLY a JSON object, no other text, no markdown fences, mapping each game id below to an object with "favorite" ("away" or "home") and "spread" (number). Do not add, remove, or reorder games — only report the current line for the exact matchups listed. If a game has already been played, or no current line is available, omit that game's id entirely.
@@ -512,12 +780,11 @@ ${list}`;
   const merged = existing.map(g => {
     const upd = parsed[g.id];
     if(upd && (upd.favorite === "away" || upd.favorite === "home") && typeof upd.spread === "number"){
-      const changed = upd.favorite !== g.favorite || upd.spread !== g.spread;
-      if(changed) changedIds.push(g.id);
+      if(upd.favorite !== g.favorite || upd.spread !== g.spread) changedIds.push(g.id);
       return { ...g, favorite: upd.favorite, spread: upd.spread };
     }
     notFoundIds.push(g.id);
-    return g; // no update found for this game — leave it exactly as-is
+    return g;
   });
   await saveScheduleToDB(weekId, merged);
   state.scheduleCache[weekId] = merged;
@@ -815,16 +1082,24 @@ async function loadSeasonSummary(){
   return rows;
 }
 
-function showToast(msg){
+let toastTimer = null;
+function showToast(msg, ms){
+  // Kept in state so it survives render() (render rebuilds the DOM and used to wipe it instantly).
+  state.toastMsg = msg;
   const t = document.getElementById("toast");
-  if(!t) return;
-  t.textContent = msg;
-  setTimeout(() => { if(t.textContent === msg) t.textContent = ""; }, 3500);
+  if(t) t.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    state.toastMsg = "";
+    const t2 = document.getElementById("toast");
+    if(t2) t2.textContent = "";
+  }, ms || 7000);
 }
 
 /* ============================= RENDER ============================= */
 function render(){
   const app = document.getElementById("app");
+  app.className = state.screen === "app" ? "" : "narrow";
   if(state.screen === "identity") return renderIdentity(app);
   if(state.screen === "pin-create") return renderPinCreate(app);
   if(state.screen === "pin-enter") return renderPinEnter(app);
@@ -910,6 +1185,8 @@ function renderApp(app){
     `}
     <div class="toast" id="toast"></div>
   `;
+  const toastEl = document.getElementById("toast");
+  if(toastEl) toastEl.textContent = state.toastMsg || "";
   document.getElementById("logoutBtn").onclick = logout;
   document.getElementById("weekSelect").onchange = (e) => switchWeek(e.target.value);
 
@@ -928,31 +1205,36 @@ function renderApp(app){
   else renderResults(content);
 }
 
+async function reloadPicksForWeek(){
+  resetPicksShape();
+  const [ed, kirk, fin, res] = await Promise.all([
+    getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
+  ]);
+  state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
+}
+
 async function handleLoadSchedule(weekId){
   state.scheduleLoading = true; render();
   const hadGamesAlready = currentGames().length > 0;
+  const weekNum = parseInt(weekId.replace("week", ""), 10);
   try{
+    let msg;
     if(hadGamesAlready){
-      const { changedIds, notFoundIds } = await refreshSpreadsOnly(weekId);
-      resetPicksShape();
-      const [ed, kirk, fin, res] = await Promise.all([
-        getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
-      ]);
-      state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
-      if(notFoundIds.length === 0) showToast(`Updated all ${changedIds.length || 0} changed line(s).`);
-      else if(changedIds.length === 0) showToast(`No lines updated — search couldn't confirm any of the ${notFoundIds.length} game(s). Try again shortly.`);
-      else showToast(`Updated ${changedIds.length}, but couldn't confirm ${notFoundIds.length} game(s) — those are unchanged. Try refreshing again.`);
+      msg = oddsSummaryToast(await refreshSpreadsOnly(weekId));
     } else {
-      await fetchScheduleFromAI(weekId);
-      resetPicksShape();
-      const [ed, kirk, fin, res] = await Promise.all([
-        getPicksForIdentity("ed"), getPicksForIdentity("kirk"), getFinal(), getResults(),
-      ]);
-      state.picksEd = ed; state.picksKirk = kirk; state.final = fin; state.results = res;
-      showToast("Schedule loaded.");
+      const info = await loadWeekSchedule(weekId);
+      if(info.source === "poolhost") msg = `Loaded ${info.count} games from PoolHost, in PoolHost's order.`;
+      else if(weekNum >= 5) msg = `${info.seenWeek ? "PoolHost is still showing Week " + info.seenWeek : "PoolHost couldn't be reached"} — loaded ${info.count} games from a web search instead, sorted to match PoolHost's order.`;
+      else msg = `Loaded ${info.count} games.`;
+      try{ msg += " " + oddsSummaryToast(await applyOddsToWeek(weekId, true)); }
+      catch(e){
+        msg += e.code === "NO_KEY" ? " Lines are web-search estimates until the Odds API key is added." : " Couldn't pull DraftKings lines: " + e.message;
+      }
     }
+    await reloadPicksForWeek();
+    showToast(msg, 10000);
   }catch(e){
-    showToast(hadGamesAlready ? "Couldn't refresh lines — try again in a moment." : "Couldn't load the schedule — try again in a moment.");
+    showToast((hadGamesAlready ? "Couldn't refresh lines: " : "Couldn't load the schedule: ") + (e.message || "try again in a moment."), 10000);
     console.error(e);
   }
   state.scheduleLoading = false;
@@ -1004,7 +1286,7 @@ function renderMyPicks(container){
     card.className = "game-card" + (state.identity === "ed" && tierObj ? " " + tierObj.cls : "");
     card.innerHTML = `
       <div class="game-header"><div class="matchup">${g.awayAb}<span class="at">@</span>${g.homeAb}</div>
-        <div class="game-meta">${g.when}<br><span class="spread">${favTeam} -${g.spread}</span> <button type="button" class="hide-link" style="display:inline;padding:0;margin:0;" data-refresh-line="${g.id}" title="Refresh just this game's line">↻</button></div></div>
+        <div class="game-meta">${g.when}<br><span class="spread">${spreadLabel(g)}</span> <button type="button" class="hide-link" style="display:inline;padding:0;margin:0;" data-refresh-line="${g.id}" title="Refresh just this game's line">↻</button></div></div>
       <div class="picker-row">
         <div class="team-toggle">
           <button type="button" class="team-btn ${p.team==='away'?'active '+meColorClass:''}" data-team="away" ${state.locked?"disabled":""}>${g.awayAb}</button>
@@ -1033,10 +1315,19 @@ function renderMyPicks(container){
       refreshLineBtn.onclick = async () => {
         refreshLineBtn.textContent = "…";
         try{
-          const ok = await refreshOneGameSpread(state.week, g.id);
-          showToast(ok ? "Line updated." : "Couldn't confirm a current line for this game — try again shortly.");
+          const r = await refreshOneGameSpread(state.week, g.id);
+          const label = r.game ? spreadLabel(r.game) : "";
+          const msgs = {
+            "updated": `${g.awayAb}@${g.homeAb} line updated: ${label}`,
+            "updated-ai": `${g.awayAb}@${g.homeAb} line updated (web-search estimate).`,
+            "same": `${g.awayAb}@${g.homeAb} is already current at DraftKings: ${label}`,
+            "started": `${g.awayAb}@${g.homeAb} has already kicked off — its line is locked.`,
+            "missing": `DraftKings hasn't posted a line for ${g.awayAb}@${g.homeAb} yet.`,
+            "nogame": "Couldn't find that game."
+          };
+          showToast(msgs[r.reason] || "Done.");
         }catch(e){
-          showToast("Refresh failed — try again in a moment.");
+          showToast("Refresh failed: " + (e.message || "try again in a moment."));
         }
         render();
       };
@@ -1113,7 +1404,7 @@ function renderCompare(container){
       `;
     }
     card.innerHTML = `<div class="game-header"><div class="matchup">${g.awayAb}<span class="at">@</span>${g.homeAb}</div>
-      <div class="game-meta">${g.when}<br><span class="spread">${favTeam} -${g.spread}</span></div></div>${body}`;
+      <div class="game-meta">${g.when}<br><span class="spread">${spreadLabel(g)}</span></div></div>${body}`;
 
     const revealBtn = card.querySelector('[data-reveal]');
     if(revealBtn) revealBtn.onclick = () => { state.revealed[g.id] = true; render(); };
@@ -1162,7 +1453,7 @@ function renderFinal(container){
     const card = document.createElement("div"); card.className = "game-card";
     card.innerHTML = `
       <div class="game-header"><div class="matchup">${g.awayAb}<span class="at">@</span>${g.homeAb}</div>
-        <div class="game-meta">${g.when}<br><span class="spread">${favTeam} -${g.spread}</span></div></div>
+        <div class="game-meta">${g.when}<br><span class="spread">${spreadLabel(g)}</span></div></div>
       <div class="picker-row">
         <div class="team-toggle">
           <button type="button" class="team-btn ${p.team==='away'?'active final':''}" data-team="away" ${state.locked?"disabled":""}>${g.awayAb}</button>
