@@ -193,7 +193,7 @@
 <body>
 
 <div id="app"><div class="loading">Loading…</div></div>
-<div class="build-footer">Confidence Pool · Build 1.13.0 · Oct 4, 2026</div>
+<div class="build-footer">Confidence Pool · Build 1.13.1 · Oct 4, 2026</div>
 
 <script>
 /* ============================= SHARED INFRA CLIENT ============================= */
@@ -997,29 +997,51 @@ async function attemptLockWeek(){
 }
 
 /* ============================= RESULTS CHECK (Anthropic API + web search) ============================= */
+// Pulls every complete {"winner":"away|home"} entry out of the AI's reply, even if the
+// reply has extra prose around it or got cut off before the closing brace.
+function extractResultsFromText(text){
+  const out = {};
+  const re = /"(g\d+)"\s*:\s*\{[^{}]*?"winner"\s*:\s*"(away|home)"[^{}]*?\}/g;
+  let m;
+  while((m = re.exec(text)) !== null){
+    const sc = /"score"\s*:\s*"([^"]*)"/.exec(m[0]);
+    out[m[1]] = { winner: m[2], score: sc ? sc[1] : null };
+  }
+  return out;
+}
+
 async function checkResults(){
   const btn = document.getElementById("checkResultsBtn");
   if(btn){ btn.disabled = true; btn.textContent = "Checking…"; }
   try{
     const wk = WEEKS[state.week];
-    const gameList = wk.games.map(g => `${g.id}: ${g.awayAb} (away) at ${g.homeAb} (home)`).join("\n");
+    const games = currentGames(); // NOTE: weeks 4+ load their games dynamically (wk.games is null there)
+    if(!games.length) throw new Error("This week's games aren't loaded yet.");
+    const gameList = games.map(g => `${g.id}: ${g.awayAb} (away) at ${g.homeAb} (home)`).join("\n");
     const prompt = `Search the web for NFL ${wk.label} 2026 scores (games scheduled ${wk.dateRange}). Some of these games may not have kicked off yet, may be in progress, or may not have final scores available yet — that's expected and fine. For each game below, check whether it has an official FINAL score. Respond with ONLY a JSON object, no other text, no markdown fences: include a key for every game that has a confirmed final score (mapping to an object with "winner" as "away" or "home", and "score" as "awayScore-homeScore"), and simply OMIT the key entirely for any game that hasn't finished yet, is in progress, or you can't confirm. Do not guess or include an entry unless you're confident the game is actually over. Example: {"g1": {"winner":"home","score":"10-13"}}.
 
 Games:
 ${gameList}`;
     const result = await workerCall({ method: "CLAUDE_API", claudeMethod: "confResults", prompt });
     if(result.error) throw new Error(result.error);
-    const clean = (result.text || "").replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean.slice(clean.indexOf("{"), clean.lastIndexOf("}") + 1));
+    const text = (result.text || "").replace(/```json|```/g, "").trim();
+    const validIds = new Set(games.map(g => g.id));
+    const parsed = {};
+    const found = extractResultsFromText(text);
+    Object.keys(found).forEach(id => { if(validIds.has(id)) parsed[id] = found[id]; });
     const foundCount = Object.keys(parsed).length;
+    if(foundCount === 0 && text.length > 0 && !/\{\s*\}/.test(text) && !/no (final|games)/i.test(text)){
+      console.warn("Unrecognized results reply:", text);
+      throw new Error("The score lookup returned something unreadable. Try again in a minute.");
+    }
     if(foundCount > 0) await saveResults(parsed);
     state.results = await getResults(); // reload the full merged set from the DB, not just this response
-    const totalGames = currentGames().length;
+    const totalGames = games.length;
     if(foundCount === 0) showToast("No final scores found yet — check back once games wrap up.");
     else if(foundCount < totalGames) showToast(`${foundCount} of ${totalGames} games final so far — updated.`);
     else showToast("All games final — results updated.");
   }catch(e){
-    showToast("Couldn't fetch results automatically. Try again shortly.");
+    showToast("Couldn't fetch results: " + (e.message || "unknown error"), 12000);
     console.error(e);
   }
   render();
