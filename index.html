@@ -193,7 +193,7 @@
 <body>
 
 <div id="app"><div class="loading">Loading…</div></div>
-<div class="build-footer">Confidence Pool · Build 1.13.1 · Oct 4, 2026</div>
+<div class="build-footer">Confidence Pool · Build 1.14.0 · Oct 11, 2026</div>
 
 <script>
 /* ============================= SHARED INFRA CLIENT ============================= */
@@ -349,6 +349,7 @@ let state = {
   week: defaultWeekId(), // current NFL week (flips on Tuesday)
   picksEd: {}, picksKirk: {}, final: {}, results: null,
   connectionOK: true, pinError: "", pinDraft: "", awaitingConfirm: false,
+  editingAs: null, // Ed-only: 'kirk' while Ed is entering Kirk's picks
   tierFilter: null, // Ed-only: filter My Picks by tier ('low'|'lowmed'|'med'|'medhigh'|'high'|null=all)
   locked: false, // whether the currently selected week is locked
   revealed: {}, // gameId -> true, per-game manual compare reveal (session-local, resets on week switch)
@@ -878,11 +879,13 @@ async function submitPinEnter(pin){
 }
 function logout(){
   clearSession();
-  state.identity = null; state.unlocked = false; state.screen = "identity"; state.tierFilter = null; render();
+  state.identity = null; state.editingAs = null; state.unlocked = false; state.screen = "identity"; state.tierFilter = null; render();
 }
 
 /* ============================= PICK LOGIC ============================= */
-function myPicksKey(){ return state.identity === "ed" ? "picksEd" : "picksKirk"; }
+// Ed can switch to entering Kirk's picks (state.editingAs === "kirk"); Kirk's own login never changes.
+function editId(){ return (state.identity === "ed" && state.editingAs === "kirk") ? "kirk" : state.identity; }
+function myPicksKey(){ return editId() === "ed" ? "picksEd" : "picksKirk"; }
 function usedPointsInMyColumn(excludeGameId){
   const used = new Set(); const mine = state[myPicksKey()];
   currentGames().forEach(g => { if(g.id !== excludeGameId && mine[g.id].pts != null) used.add(mine[g.id].pts); });
@@ -902,14 +905,14 @@ async function setMyPick(gameId, team, pts){
     for(const g of currentGames()){
       if(g.id !== gameId && mine[g.id].pts === newPts){
         mine[g.id] = { ...mine[g.id], pts: null };
-        await savePick(state.identity, g.id, mine[g.id].team, null, mine[g.id].tier);
+        await savePick(editId(), g.id, mine[g.id].team, null, mine[g.id].tier);
       }
     }
   }
   const newVal = { team: team!==undefined?team:mine[gameId].team, pts: newPts, tier: mine[gameId].tier };
   mine[gameId] = newVal;
   render();
-  await savePick(state.identity, gameId, newVal.team, newVal.pts, newVal.tier);
+  await savePick(editId(), gameId, newVal.team, newVal.pts, newVal.tier);
 }
 async function setMyTier(gameId, tier){
   if(state.locked) return;
@@ -918,7 +921,7 @@ async function setMyTier(gameId, tier){
   const newTier = cur.tier === tier ? null : tier; // tap again to clear
   mine[gameId] = { team: cur.team, pts: cur.pts, tier: newTier };
   render();
-  await savePick(state.identity, gameId, cur.team, cur.pts, newTier);
+  await savePick(editId(), gameId, cur.team, cur.pts, newTier);
 }
 async function setFinalPick(gameId, team, pts){
   if(state.locked) return;
@@ -1265,10 +1268,11 @@ async function handleLoadSchedule(weekId){
 
 function renderMyPicks(container){
   const games = currentGames(); const n = currentN();
-  const mine = state[myPicksKey()]; const meColorClass = state.identity;
+  const mine = state[myPicksKey()]; const meColorClass = editId();
+  const canSwitch = state.identity === "ed"; const forKirk = editId() === "kirk";
   let doneCount = 0; games.forEach(g => { if(isComplete(mine[g.id])) doneCount++; });
 
-  const isEd = state.identity === "ed";
+  const isEd = editId() === "ed";
   let filterBarHTML = "";
   if(isEd){
     const counts = {};
@@ -1284,15 +1288,25 @@ function renderMyPicks(container){
 
   const visibleGames = (isEd && state.tierFilter) ? games.filter(g => mine[g.id].tier === state.tierFilter) : games;
 
+  const switchHTML = canSwitch ? `
+    <div class="tier-filter-row" style="margin-bottom:10px;">
+      <button type="button" class="tier-filter-btn ${!forKirk?'active':''}" data-editas="ed" style="${!forKirk?'background:var(--ed-accent);':''}">Entering: Ed's picks</button>
+      <button type="button" class="tier-filter-btn ${forKirk?'active':''}" data-editas="kirk" style="${forKirk?'background:var(--kirk-accent);':''}">Entering: Kirk's picks</button>
+    </div>
+    ${forKirk ? `<div class="hint-text" style="margin-bottom:10px;">You're entering Kirk's picks. They save under Kirk.</div>` : ""}` : "";
   container.innerHTML = `
     ${lockedBannerHTML()}
+    ${switchHTML}
     ${filterBarHTML}
     <div class="status-bar"><div class="status-pill ${meColorClass}"><span class="n">${doneCount}/${n}</span>Submitted</div></div>
     <div id="myGames"></div>
     ${isEd && state.tierFilter && visibleGames.length === 0 ? `<div class="hint-text">No games tagged "${TIERS.find(t=>t.key===state.tierFilter).label}" yet.</div>` : ""}
   `;
+  container.querySelectorAll('[data-editas]').forEach(btn => {
+    btn.onclick = () => { state.editingAs = btn.dataset.editas === "kirk" ? "kirk" : null; state.tierFilter = null; render(); };
+  });
   if(isEd){
-    container.querySelectorAll('.tier-filter-btn').forEach(btn => {
+    container.querySelectorAll('.tier-filter-btn[data-filter]').forEach(btn => {
       btn.onclick = () => { state.tierFilter = btn.dataset.filter || null; render(); };
     });
   }
@@ -1301,11 +1315,11 @@ function renderMyPicks(container){
     const p = mine[g.id]; const used = usedPointsInMyColumn(g.id);
     const favTeam = g.favorite === "home" ? g.homeAb : g.awayAb;
     const options = ptsOptionsHTML(n, p.pts, used);
-    const otherComplete = isComplete(state[state.identity==='ed'?'picksKirk':'picksEd'][g.id]);
+    const otherComplete = isComplete(state[editId()==='ed'?'picksKirk':'picksEd'][g.id]);
     const bothIn = isComplete(state.picksEd[g.id]) && isComplete(state.picksKirk[g.id]);
     const tierObj = TIERS.find(t => t.key === p.tier);
     const card = document.createElement("div");
-    card.className = "game-card" + (state.identity === "ed" && tierObj ? " " + tierObj.cls : "");
+    card.className = "game-card" + (isEd && tierObj ? " " + tierObj.cls : "");
     card.innerHTML = `
       <div class="game-header"><div class="matchup">${g.awayAb}<span class="at">@</span>${g.homeAb}</div>
         <div class="game-meta">${g.when}<br><span class="spread">${spreadLabel(g)}</span> <button type="button" class="hide-link" style="display:inline;padding:0;margin:0;" data-refresh-line="${g.id}" title="Refresh just this game's line">↻</button></div></div>
@@ -1316,7 +1330,7 @@ function renderMyPicks(container){
         </div>
         <select class="pts" ${state.locked?"disabled":""}>${options}</select>
       </div>
-      ${state.identity === "ed" ? `
+      ${isEd ? `
       <div class="tier-row">
         ${TIERS.map(t => `<button type="button" class="tier-btn ${p.tier===t.key?'active':''}" data-tier="${t.key}" style="${p.tier===t.key?`background:${t.color};`:''}" ${state.locked?"disabled":""}>${t.label}</button>`).join("")}
       </div>` : ""}
@@ -1326,7 +1340,7 @@ function renderMyPicks(container){
       card.querySelector('[data-team="away"]').onclick = () => setMyPick(g.id, "away", undefined);
       card.querySelector('[data-team="home"]').onclick = () => setMyPick(g.id, "home", undefined);
       card.querySelector("select").onchange = (e) => setMyPick(g.id, undefined, e.target.value === "" ? null : parseInt(e.target.value,10));
-      if(state.identity === "ed"){
+      if(isEd){
         card.querySelectorAll('[data-tier]').forEach(btn => {
           btn.onclick = () => setMyTier(g.id, btn.dataset.tier);
         });
